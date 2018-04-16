@@ -7,8 +7,10 @@ int main(int argc, char **argv){
   ros::init(argc, argv, "robot_rrt_planning") ;
   ros::NodeHandle nh;
   rrt robot_rrt(nh);
+  robot_rrt.clearMarker();
   
   ros::Rate r(10);
+  //ros::Rate s(500);
   ros::spinOnce();
   
   
@@ -21,7 +23,8 @@ int main(int argc, char **argv){
       while(robot_rrt.nodeCounter < robot_rrt.maxNodes){
         robot_rrt.generateNode();
         robot_rrt.closestNode();
-        robot_rrt.marker();
+        robot_rrt.marker(robot_rrt.nodeCounter);
+        robot_rrt.nodeCounter++;
         
         if(robot_rrt.pathFound){
           printf("~~~creating path~~~\n");
@@ -29,7 +32,7 @@ int main(int argc, char **argv){
           break;
         }
         
-        sleep(0.01);
+        //s.sleep();
       }
     }
     if(robot_rrt.pathFound == true){

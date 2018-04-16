@@ -1,0 +1,21 @@
+#!/bin/bash
+
+my_pid=$$
+echo "process ID is $my_pid"
+
+echo "launching roscore..."
+roscore &
+pid = $!
+
+echo "runnning robot_rrt_planning..."
+rosrun robot_pedestrian_rrt robot_rrt_planning &
+pid = "$pid $!"
+
+echo "running controller..."
+rosrun robot_pedestrian_rrt controller &
+pid = "$pid $!"
+
+echo "set goal to [20,0,0]"
+rostopic pub /map_goal geometry_msgs/Topic '[20,0,0]' '[0,0,0]' -1
+
+

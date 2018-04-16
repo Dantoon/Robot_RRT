@@ -203,3 +203,7 @@ include_directories(
 add_executable(robot_rrt_planning src/robot_rrt_planning.cpp)
 target_link_libraries(robot_rrt_planning ${catkin_LIBRARIES})
 add_dependencies(robot_rrt_planning ${catkin_EXPORTED_TARGETS})
+
+#add_executable(controller src/controller.cpp)
+#target_link_libraries(controller ${catkin_LIBRARIES})
+#add_dependencies(controller ${catkin_EXPORTED_TARGETS})

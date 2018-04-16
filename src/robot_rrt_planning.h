@@ -1,12 +1,10 @@
 #include <ros/ros.h>
-#include "nav_msgs/Path.h"
 #include "nav_msgs/OccupancyGrid.h"
 #include "nav_msgs/Odometry.h"
-#include "nav_msgs/MapMetaData.h"
 #include "geometry_msgs/Twist.h"
 #include "geometry_msgs/Point.h"
-#include "geometry_msgs/PoseStamped.h"
 #include "visualization_msgs/Marker.h"
+#include "std_msgs/Int16.h"
 
 #include <cstdlib>
 #include <stdio.h>
@@ -34,7 +32,8 @@ class rrt{
     void generateNode();
     void closestNode();
     void createPath();
-    void marker();
+    void marker(int markerNum);
+    void clearMarker();
     
     float goalArea;
     bool mapGoalExist;
@@ -43,21 +42,17 @@ class rrt{
     
     nav_msgs::OccupancyGrid map;
     
-    /*
-    int mapWidth;
-    int mapHeight;
-    float mapResolution;
-    float mapPoseX;
-    float mapPoseY;
-    */
-    
   private:
     ros::Subscriber subGoal;
     ros::Subscriber subMap;
     ros::Subscriber subMapMeta;
     ros::Subscriber subPose;
-    ros::Publisher pubPath;
+    
+    ros::Publisher pubPathPoints;
+    ros::Publisher pubPathPointsNumber;
     ros::Publisher pubMarker;
+    
+    void collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point2);
     
     void goalCallback(const geometry_msgs::Twist& goal_msg);
     void initialPoseCallback(const nav_msgs::Odometry& odom_msg);
@@ -74,13 +69,15 @@ rrt::rrt(ros::NodeHandle nh){
   pathFound = false;
   nodeCounter = 2;
   maxNodes = 10000;
-  goalArea = 2;
+  goalArea = 1;
   
   
   subGoal = nh.subscribe("map_goal", 10, &rrt::goalCallback, this);
   subPose = nh.subscribe("robot_0/odom", 10, &rrt::initialPoseCallback, this);
   subMap = nh.subscribe("map", 10, &rrt::mapCallback, this);
-  pubPath = nh.advertise<nav_msgs::Path>("path", 50, true);
+  
+  pubPathPoints = nh.advertise<geometry_msgs::Point>("path_points", 50, true);
+  pubPathPointsNumber = nh.advertise<std_msgs::Int16>("path_points_number", 50, true);
   pubMarker = nh.advertise<visualization_msgs::Marker>("treepoints",50,true);
 }
 
@@ -88,30 +85,7 @@ void rrt::mapCallback(const nav_msgs::OccupancyGrid& msg){
 
   map = msg;
   printf("map detected\n");
-  //TODO: rrt algorithm using map from /map
-  
-  
-  //after succesful rrt, path gets published to /path
-  
-  nav_msgs::Path final_path;
-  
-  //pubPath.publish(final_path);
-
 }
-
-/*
-void rrt::mapMetaCallback(const nav_msgs::MapMetaData& msg){
-
-  mapWidth = msg.width;
-  mapHeight = msg.height;
-  mapResolution = msg.resolution;
-  mapPoseX = msg.origin.position.x;
-  mapPoseY = msg.origin.position.y;
-  
-  printf("width=%i height=%i res=%f poseX=%f poseY=%f\n", mapWidth, mapHeight, mapResolution, mapPoseX, mapPoseY);
-
-}
-*/
 
 void rrt::goalCallback(const geometry_msgs::Twist& msg){
   tree[0].point.x = msg.linear.x;
@@ -119,6 +93,7 @@ void rrt::goalCallback(const geometry_msgs::Twist& msg){
   
   printf("Map Goal is set to x=%f and y=%f\n", tree[0].point.x, tree[0].point.y);
   mapGoalExist = true;
+  marker(0);
 }
 
 void rrt::initialPoseCallback(const nav_msgs::Odometry& msg){
@@ -132,6 +107,7 @@ void rrt::initialPoseCallback(const nav_msgs::Odometry& msg){
     initialPoseExist = true;
     printf("Initial Position is set to x=%f and y=%f\n", tree[1].point.x, tree[1].point.y);
   }
+  marker(1);
 }
 
 
@@ -156,32 +132,34 @@ void rrt::generateNode(){
   
   newNode.point.x = x;
   newNode.point.y = y;
-  //TODO: Check if new node is valid(free area? collision with edge?), connect it and increment counter. diff function?
-  //also convert from pixels into koord.
   
-  printf("new Node #%i x=%f y=%f\n", nodeCounter, newNode.point.x, newNode.point.y);  
+  printf("new Node #%i x=%f y=%f\n", nodeCounter, newNode.point.x, newNode.point.y);
 }
 
 void rrt::closestNode(){
 
-  float closestDistance = 10000.0;
+  float closestDistance = 10000.0f;
   float distance;
   int closestNodeID = -1;
 
   for(int n=nodeCounter-1; n>=0; n--){
-    distance = sqrt(pow(newNode.point.x-tree[n].point.x,2)+(newNode.point.y-tree[n].point.y,2));
+    distance = sqrt(pow(newNode.point.x-tree[n].point.x,2)+pow(newNode.point.y-tree[n].point.y,2));
     if(distance < closestDistance && n!=0){
+    	//TODO check for collision using costmap when connecting, with functiono depending on newNode coordinate and closestNode coordinate
       closestDistance = distance;
       closestNodeID = n;
+  		//TODO save n closest nodes in array for RRT* rewiring
     }
   }
+  
+  //TODO for loop checking n closest nodes and calculate lowest cost connection. change closestNodeID to result
   
   if(closestNodeID != -1){
     tree[nodeCounter].point.x = newNode.point.x;
     tree[nodeCounter].point.y = newNode.point.y;
     tree[nodeCounter].parentID = closestNodeID;
     tree[nodeCounter].cost = tree[closestNodeID].cost + closestDistance;
-    printf("node #%i cost=%f\n", nodeCounter, tree[nodeCounter].cost);
+    printf("node #%i cost=%f with node #%i\n", nodeCounter, tree[nodeCounter].cost, tree[nodeCounter].parentID);
     
     //last distance calculated is distance to node. if close enough path is found
     if(distance < goalArea){
@@ -190,9 +168,13 @@ void rrt::closestNode(){
       tree[0].cost = tree[nodeCounter].cost + distance;
       printf("path found. Distance is: %f\n", tree[0].cost);
     }
-    
-    nodeCounter++;
   }
+}
+
+void rrt::collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point2){
+
+	//TODO create array with linearly spaced points, with distance = size_robot. check for occupancy>constant in radius size_robot/2 
+
 }
 
 void rrt::createPath(){
@@ -204,25 +186,33 @@ void rrt::createPath(){
     nodesToGoal++;
   }
   
+  std_msgs::Int16 msg;
+  msg.data = nodesToGoal;
   printf("amount of nodes to goal is: %i\n", nodesToGoal);
+  pubPathPointsNumber.publish(msg);
   
-  //segmentation faul core dumped. Due to poses[] not having enough places in array to save values to? how to initializ size?
-
-  //geometry_msgs::PoseStamped poses[nodesToGoal];
   nodeCounter = 0;
-  
-  nav_msgs::Path myPath;
-  //geometry_msgs::PoseStamped myPath.poses[nodesToGoal];
-  
-  for(int n = nodesToGoal-1; n>=0; n-- ){
-    myPath.poses[n].pose.position = tree[nodeCounter].point;
-    //poses[n].pose.position = tree[nodeCounter].point;
-    nodeCounter = tree[nodeCounter].parentID;
-  }
+
+	visualization_msgs::Marker pathMarker;
+	pathMarker.type = visualization_msgs::Marker::LINE_STRIP;
+	pathMarker.header.frame_id = "map";
+	pathMarker.ns = "path";
+	pathMarker.id = 0;
+	pathMarker.action = 0;
 	
-  //myPath.poses = poses;
-  pubPath.publish(myPath);
-  
+	pathMarker.color.r = 0.5f;
+	pathMarker.color.g = 0.5f;
+	pathMarker.color.a = 1.0f;
+	pathMarker.scale.x = 0.4f;
+	
+	while(true){
+		pathMarker.points.push_back(tree[nodeCounter].point);
+		pathMarker.pose.position.z = 0.2f;
+		nodeCounter = tree[nodeCounter].parentID;
+		if(nodeCounter==1)
+			break;
+	}
+	pubMarker.publish(pathMarker);
 }
 
 //check for obstacle collision with edges?
@@ -231,26 +221,65 @@ void rrt::createPath(){
       
 //Visualization
 
-void rrt::marker(){
-	visualization_msgs::Marker marker;
-	marker.type = visualization_msgs::Marker::SPHERE;
+void rrt::marker(int markerNum){
+	//Nodes
+	visualization_msgs::Marker nodeMarker;
+	nodeMarker.type = visualization_msgs::Marker::SPHERE;
 	
-	marker.header.frame_id = "treepoints";
-	marker.ns = "treepoints";
+	nodeMarker.header.frame_id = "map";
+	nodeMarker.ns = "treepoint";
+	nodeMarker.id = markerNum;
 	
-	marker.color.g = 1.0;
-	marker.color.a = 1.0;
+	nodeMarker.action = visualization_msgs::Marker::ADD;
 	
-	marker.scale.x = 5;
-	marker.scale.y = 5;
-	marker.scale.z = 1;
+	nodeMarker.color.g = 1.0f;
+	if(markerNum==0){
+		nodeMarker.color.r = 1.0f;
+		nodeMarker.color.g = 0.0f;
+	}
+	if(markerNum==1){
+		nodeMarker.color.b = 1.0f;
+		nodeMarker.color.g = 0.0f;
+	}
+	nodeMarker.color.a = 1.0f;
 	
-	marker.pose.position = newNode.point;
-	pubMarker.publish(marker);
+	nodeMarker.scale.x = 0.6f;
+	nodeMarker.scale.y = 0.6f;
+	nodeMarker.scale.z = 0.1f;
+	
+	nodeMarker.pose.position = tree[markerNum].point;
+	nodeMarker.pose.orientation.w = 1.0f;
+	
+	pubMarker.publish(nodeMarker);
+	
+	//Tree
+	visualization_msgs::Marker treeMarker;
+	treeMarker.type = visualization_msgs::Marker::LINE_LIST;
+	nodeMarker.action = visualization_msgs::Marker::ADD;
+	
+	treeMarker.header.frame_id = "map";
+	treeMarker.ns = "tree";
+	treeMarker.id = markerNum;
+	
+	treeMarker.color.b = 1.0f;
+	treeMarker.color.a = 1.0f;
+	treeMarker.scale.x = 0.1f;
+	treeMarker.pose.orientation.w = 1.0f;
+	
+	treeMarker.points.push_back(tree[markerNum].point);
+	treeMarker.points.push_back(tree[tree[markerNum].parentID].point);
+	
+	pubMarker.publish(treeMarker);
 	
 }
 
+void rrt::clearMarker(){
 
+	visualization_msgs::Marker deleteAll;
+	deleteAll.action = 3;
+	pubMarker.publish(deleteAll);
+
+}
 
 
 
