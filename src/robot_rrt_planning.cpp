@@ -10,8 +10,10 @@ int main(int argc, char **argv){
   robot_rrt.clearMarker();
   
   ros::Rate r(10);
-  //ros::Rate s(500);
+  ros::Rate s(30);
   ros::spinOnce();
+  
+  int connection;
   
   
   while(ros::ok()){
@@ -20,19 +22,25 @@ int main(int argc, char **argv){
     
     if(robot_rrt.initialPoseExist && robot_rrt.mapGoalExist){
       
+      robot_rrt.distanceX = robot_rrt.tree[0].point.x - robot_rrt.tree[1].point.x;
+      robot_rrt.distanceY = robot_rrt.tree[0].point.y - robot_rrt.tree[1].point.y;
+      
       while(robot_rrt.nodeCounter < robot_rrt.maxNodes){
         robot_rrt.generateNode();
-        robot_rrt.closestNode();
-        robot_rrt.marker(robot_rrt.nodeCounter);
-        robot_rrt.nodeCounter++;
+        connection = robot_rrt.closestNode();
         
+        if(connection == 0){
+ 	        robot_rrt.marker(robot_rrt.nodeCounter);
+        	robot_rrt.nodeCounter++;
+				}				
+				        
         if(robot_rrt.pathFound){
           printf("~~~creating path~~~\n");
           robot_rrt.createPath();
           break;
         }
-        
-        //s.sleep();
+        //usleep(100);
+        s.sleep();
       }
     }
     if(robot_rrt.pathFound == true){
@@ -42,6 +50,6 @@ int main(int argc, char **argv){
     r.sleep();	//does spinning have a performance / stability impact?-> is sleep necessary?
   }
 
-  return 0;
+  sleep(3);
   
 }

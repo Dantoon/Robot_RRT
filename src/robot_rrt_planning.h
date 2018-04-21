@@ -30,7 +30,7 @@ class rrt{
     unsigned int nodeCounter;
     int maxNodes;
     void generateNode();
-    void closestNode();
+    int closestNode();
     void createPath();
     void marker(int markerNum);
     void clearMarker();
@@ -42,7 +42,14 @@ class rrt{
     
     nav_msgs::OccupancyGrid map;
     
+    float distanceX;
+  	float distanceY;
+    
   private:
+  	float robotSize;
+  	
+    rrtNode closestNodes[10];
+  	
     ros::Subscriber subGoal;
     ros::Subscriber subMap;
     ros::Subscriber subMapMeta;
@@ -52,7 +59,7 @@ class rrt{
     ros::Publisher pubPathPointsNumber;
     ros::Publisher pubMarker;
     
-    void collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point2);
+    bool collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point2);
     
     void goalCallback(const geometry_msgs::Twist& goal_msg);
     void initialPoseCallback(const nav_msgs::Odometry& odom_msg);
@@ -69,12 +76,13 @@ rrt::rrt(ros::NodeHandle nh){
   pathFound = false;
   nodeCounter = 2;
   maxNodes = 10000;
-  goalArea = 1;
+  goalArea = 2;
+  robotSize = 1;
   
   
   subGoal = nh.subscribe("map_goal", 10, &rrt::goalCallback, this);
   subPose = nh.subscribe("robot_0/odom", 10, &rrt::initialPoseCallback, this);
-  subMap = nh.subscribe("map", 10, &rrt::mapCallback, this);
+  subMap = nh.subscribe("robot_0/robot_map/robot_map/costmap", 10, &rrt::mapCallback, this);
   
   pubPathPoints = nh.advertise<geometry_msgs::Point>("path_points", 50, true);
   pubPathPointsNumber = nh.advertise<std_msgs::Int16>("path_points_number", 50, true);
@@ -112,69 +120,158 @@ void rrt::initialPoseCallback(const nav_msgs::Odometry& msg){
 
 
 void rrt::generateNode(){
-
-  float x;
-  float y;
+	//TODO change algorithm to spawn nodes in area roughly in between goal and start. cannot check for in map anymore with costmap (out of bounds is 0 not -1)
+  float cellX;
+  float cellY;
   bool occupied = true;
   
+  /*
   while(occupied){
-    x = rand() % map.info.width;
-    y = rand() % map.info.height;
-    if(map.data[x*map.info.width + y] == 0){
+    cellX = rand() % map.info.width;
+    cellY = rand() % map.info.height;
+    if(map.data[cellX*map.info.width + cellY - 1] < 30){
       occupied = false;
     }
+  }
+  */
+  
+  int spawnAreaX = 2*(distanceX)/map.info.resolution;
+  int spawnAreaY = 2*(distanceY)/map.info.resolution;
+  int invX;
+  int invY;
+  
+  if (spawnAreaX >= 0)
+  	invX = 1;
+  else
+  	invX = -1;
+  if (spawnAreaY >= 0)
+  	invY = 1;
+  else
+  	invY = -1;
+  
+  while(occupied){
+  	cellX = tree[1].point.x/map.info.resolution + (rand() % spawnAreaX)*invX - spawnAreaX/4;
+  	cellY = tree[1].point.x/map.info.resolution + (rand() % spawnAreaY)*invY - spawnAreaY/4;
+  	printf("cellX:	%f\ncellY:	%f\n", cellX, cellY);
+  	/*
+  	if(map.data[cellX-floor(map.info.origin.position.x/map.info.resolution) + (cellY-1 - floor(map.info.origin.position.y/map.info.resolution))*map.info.width] < 5){
+  		occupied = false;
+  	}
+  	*/
+  	if(map.data[(int)((cellX-1-map.info.origin.position.x/map.info.resolution)*map.info.height) + (int)(cellY - map.info.origin.position.y/map.info.resolution)] < 5){
+  		occupied = false;
+  	}
+  	
   }
   
   
   //convert pixels to coordinates
-  x = x * map.info.resolution + map.info.origin.position.x;
-  y = y * map.info.resolution + map.info.origin.position.y;
+  /*
+  newNode.point.x = cellX * map.info.resolution + map.info.origin.position.x;
+  newNode.point.y = cellY * map.info.resolution + map.info.origin.position.y;
+  */  
   
-  newNode.point.x = x;
-  newNode.point.y = y;
+  newNode.point.x = cellX * map.info.resolution + tree[1].point.x;
+  newNode.point.y = cellY * map.info.resolution + tree[1].point.y;
   
   printf("new Node #%i x=%f y=%f\n", nodeCounter, newNode.point.x, newNode.point.y);
 }
 
-void rrt::closestNode(){
+int rrt::closestNode(){
 
-  float closestDistance = 10000.0f;
+  float closestDistance = 100000000.0f;
+  float distanceTresh = 5;
   float distance;
   int closestNodeID = -1;
+  
 
   for(int n=nodeCounter-1; n>=0; n--){
     distance = sqrt(pow(newNode.point.x-tree[n].point.x,2)+pow(newNode.point.y-tree[n].point.y,2));
-    if(distance < closestDistance && n!=0){
-    	//TODO check for collision using costmap when connecting, with functiono depending on newNode coordinate and closestNode coordinate
-      closestDistance = distance;
-      closestNodeID = n;
-  		//TODO save n closest nodes in array for RRT* rewiring
-    }
+    
+ 		if(distance < distanceTresh && tree[n].cost + distance < closestDistance && n!=0){
+ 		
+    	if(collisionCheck(tree[n].point, newNode.point)==false){
+      	closestDistance = tree[n].cost + distance;
+     		closestNodeID = n;
+     		printf("closestNodeID: %i\n",closestNodeID);
+  			//TODO save n closest nodes in array for RRT* rewiring
+  		}
+    }    
+    
   }
   
   //TODO for loop checking n closest nodes and calculate lowest cost connection. change closestNodeID to result
   
-  if(closestNodeID != -1){
+  if(closestNodeID > 0){
     tree[nodeCounter].point.x = newNode.point.x;
     tree[nodeCounter].point.y = newNode.point.y;
     tree[nodeCounter].parentID = closestNodeID;
     tree[nodeCounter].cost = tree[closestNodeID].cost + closestDistance;
     printf("node #%i cost=%f with node #%i\n", nodeCounter, tree[nodeCounter].cost, tree[nodeCounter].parentID);
     
-    //last distance calculated is distance to node. if close enough path is found
+    //last distance calculated is distance to goal. if close enough path is found
     if(distance < goalArea){
       pathFound = true;
-      tree[0].parentID = closestNodeID;
+      tree[0].parentID = nodeCounter;
       tree[0].cost = tree[nodeCounter].cost + distance;
       printf("path found. Distance is: %f\n", tree[0].cost);
     }
+    return 0;
   }
+  else{
+  	printf("connection failed\n");	
+  	return 1;
+	}
 }
 
-void rrt::collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point2){
+bool rrt::collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point2){
 
-	//TODO create array with linearly spaced points, with distance = size_robot. check for occupancy>constant in radius size_robot/2 
-
+	//TODO create array with linearly spaced points, with distance = size_robot. check for occupancy>constant in radius size_robot/2
+	printf("checking for collision...	");
+	float distance = sqrt(pow(point1.x-point2.x,2)+pow(point1.y-point2.y,2));
+	int checkPoints = distance/robotSize;
+	
+	geometry_msgs::Point line[checkPoints+1];
+	
+	/*
+	for(int n=0; n < checkPoints; n++){
+		//add points along path into array in pixels
+		line[n].x = (point1.x + n*(point1.x-point2.x)/checkPoints)*map.info.resolution; 
+		line[n].y = (point1.y + n*(point1.y-point2.y)/checkPoints)*map.info.resolution;
+	}
+	
+	//pull costmap -> already saved in map
+	
+	//convert costmap array into matrix	NVM calculate with mao directliy -> less operations
+	int ko2arr; //saves 1D "koordinates" for 1D array
+	
+	for(int k=0; k<checkPoints; k++){
+		ko2arr = (line[k].y-map.info.width) + (line[k].x);
+		
+		if(map.data[ko2arr] > 30){
+			printf("collision detected\n");
+			return true;
+		}
+		
+		/*
+		for(int j=0; j<searchRadius; j++){
+		
+			for(int i=0; i<searchRadius; i++){
+				ko2arr = (line[k].y-robotSize*map.info.resolution/2.0f+j)*map.info.width;	//influence of y: which row
+				ko2arr += (line[k].x-robotSize*map.info.resolution/2.0f+i); // influence of x: which column
+				
+				if(map.data[ko2arr]!=0){
+					printf("collision detected\n");
+					return true;
+				}
+			}
+		}
+		*don't forget to comment back when finished
+		
+	}
+	*/
+	printf("no collision\n");
+	return false;
 }
 
 void rrt::createPath(){
@@ -207,18 +304,14 @@ void rrt::createPath(){
 	
 	while(true){
 		pathMarker.points.push_back(tree[nodeCounter].point);
-		pathMarker.pose.position.z = 0.2f;
-		nodeCounter = tree[nodeCounter].parentID;
+		pathMarker.pose.position.z = 0.005f;
 		if(nodeCounter==1)
 			break;
+		nodeCounter = tree[nodeCounter].parentID;
 	}
 	pubMarker.publish(pathMarker);
 }
 
-//check for obstacle collision with edges?
-      //check for collision using linspace like function?
-      //-> create vector and check if any of the points are on occupied area
-      
 //Visualization
 
 void rrt::marker(int markerNum){
@@ -243,11 +336,12 @@ void rrt::marker(int markerNum){
 	}
 	nodeMarker.color.a = 1.0f;
 	
-	nodeMarker.scale.x = 0.6f;
-	nodeMarker.scale.y = 0.6f;
+	nodeMarker.scale.x = 0.4f;
+	nodeMarker.scale.y = 0.4f;
 	nodeMarker.scale.z = 0.1f;
 	
 	nodeMarker.pose.position = tree[markerNum].point;
+	nodeMarker.pose.position.z = 0.01f;
 	nodeMarker.pose.orientation.w = 1.0f;
 	
 	pubMarker.publish(nodeMarker);
