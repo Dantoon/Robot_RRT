@@ -29,7 +29,7 @@ class rrt{
     
     unsigned int nodeCounter;
     int maxNodes;
-    void generateCmd();
+    int generateCmd();
     int closestNode();
     
     float goalArea;
@@ -42,7 +42,8 @@ class rrt{
     float distanceX;
   	float distanceY;
   	
-  	void marker(int markerNum, int connection);
+  	void markerPoint(geometry_msgs::Pose pose, int type);
+  	void markerLine(geometry_msgs::Pose pose1, geometry_msgs::Pose pose2, int type);  	
     void clearMarker();
     
   private:
@@ -61,7 +62,7 @@ class rrt{
     
     bool collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point2);
     
-    void goalCallback(const geometry_msgs::Twist& goal_msg);
+    void goalCallback(const geometry_msgs::Pose& goal_msg);
     void initialPoseCallback(const nav_msgs::Odometry& odom_msg);
     void mapCallback(const nav_msgs::OccupancyGrid& map_msg);
     void mapMetaCallback(const nav_msgs::MapMetaData& meta_msg);
@@ -103,59 +104,90 @@ void rrt::goalCallback(const geometry_msgs::Pose& msg){
   
   printf("Map Goal is set to x=%f and y=%f\n", tree[0].endPose.position.x, tree[0].endPose.position.y);
   mapGoalExist = true;
-  marker(0,0);
+  markerPoint(tree[0].endPose,0);
 }
 
 void rrt::initialPoseCallback(const nav_msgs::Odometry& msg){
   if(initialPoseExist == false){
-    tree[1].endPose = msg.pose.pose
-    tree[1].parentID = -1;
-    tree[1].cost = 0.0;
+    tree[1].endPose = msg.pose.pose;
     
     initialPoseExist = true;
-    printf("Initial Position is set to x=%f and y=%f\n", tree[1].point.x, tree[1].point.y);
+    printf("Initial Position is set to x=%f and y=%f\n", tree[1].endPose.position.x, tree[1].endPose.position.y);
   }
-  marker(1,0);
+  markerPoint(tree[1].endPose,1);
 }
 
 
-void rrt::generateCmd(){
-	
+int rrt::generateCmd(){
+	 printf("~~~generating cmd #%i~~~\n", nodeCounter);
 	//generate n command velocities which run for time t
-	int n= 10;
-	float angx;
+	int N = 100;
+	float angz;
 	float angMax =  1;
 	float speed = 1;
+	int success = -1;
 	
 	geometry_msgs::Pose tempPose;
 	geometry_msgs::Twist tempCmd;
 	
-	float closestDistance;
-	float tempDistance;
+	float closestDistance = 10000;
+	float tempDistance = 10000;
 	float cost;
+
+	for(int counter=0; counter<N; counter++){
 	
-	for(int counter=0; counter<n; counter++){
-		angz = rand() % angMax;
-	
+		angz = (double)(rand() % 101 -50)/101*angMax;
 	
 	//integrate path to see determine path position after time t and distance travelled
-		tempPose.position.x = tree[nodeCounter-1].endPose.position.x + speed*cos(tree[nodeCounter-1].pose.orientation.z);
-		tempPose.position.y = tree[nodeCounter-1].endPose.position.y + speed*sin(tree[nodeCounter-1].pose.orientation.z);
+	  int subSteps = 10;
+	  float T = 1;          //length of command in seconds
+	  float d = T/subSteps;
+	  float dx = 0;
+	  float dy = 0;
+	
+	  int i;
+	  
+	  for(i = 0; i<subSteps; i++){
+	   dx += d*cos(tree[nodeCounter-1].endPose.orientation.z+i*angz*T/subSteps);
+	  }
+    for(i = 0; i<subSteps; i++){
+	   dy += d*sin(tree[nodeCounter-1].endPose.orientation.z+i*angz*T/subSteps);
+	  }
+    	
+    //printf("dx: %f  dy: %f\n", dx,dy);	
+    	 
+    tempPose.position.x = tree[nodeCounter-1].endPose.position.x + dx;
+	  tempPose.position.y = tree[nodeCounter-1].endPose.position.y + dy;
+	  tempPose.orientation.z = tree[nodeCounter-1].endPose.orientation.z + angz*T;
 	
 	//choose path closest to goal
 		tempDistance = sqrt(pow(tree[0].endPose.position.x - tempPose.position.x,2)+pow(tree[0].endPose.position.y - tempPose.position.y,2));
 	
-	//check if path end is actually closer than start
-		if(tempDistance < closestDistance && tempDistance < tree[nodeCounter-1].distanceToGoal){
+		if(tempDistance < closestDistance){
+		
+		//TODO collision Checking
 			closestDistance = tempDistance;
 			tree[nodeCounter].cmd.linear.x = speed;
 			tree[nodeCounter].cmd.angular.z = angz;	
 			tree[nodeCounter].distanceToGoal = tempDistance;
 			tree[nodeCounter].endPose = tempPose;
+			success = 0;
 			
 			//add visualization
+			markerPoint(tempPose, 2);
+			printf("angle: %f\n",angz);
+			printf("orientation: %f\n", tree[nodeCounter].endPose.orientation.z);			
 		}
 	}
+	
+	//check distance to goal
+	float distance2Goal = sqrt(pow(tree[0].endPose.position.x-tree[nodeCounter].endPose.position.x,2) + pow(tree[0].endPose.position.y-tree[nodeCounter].endPose.position.y,2));
+	
+	if(distance2Goal < goalArea && success == 0){
+	  pathFound = true;
+	}
+	
+	return success;
 }
 
 bool rrt::collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point2){
@@ -165,23 +197,27 @@ bool rrt::collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point
 
 //Visualization
 
-void rrt::marker(int markerNum, int connection){
-	//Nodes
+void rrt::markerPoint(geometry_msgs::Pose pose, int type){
+  //type: 0-goal, 1-start, 2-generic  
+  
 	visualization_msgs::Marker nodeMarker;
 	nodeMarker.type = visualization_msgs::Marker::SPHERE;
 	
 	nodeMarker.header.frame_id = "map";
 	nodeMarker.ns = "treepoint";
-	nodeMarker.id = markerNum;
+	nodeMarker.id = nodeCounter;
+	if(type < 2){
+	  nodeMarker.id = type;
+	}
 	
 	nodeMarker.action = visualization_msgs::Marker::ADD;
 	
 	nodeMarker.color.g = 1.0f;
-	if(markerNum==0){
+	if(type==0){
 		nodeMarker.color.r = 1.0f;
 		nodeMarker.color.g = 0.0f;
 	}
-	if(markerNum==1){
+	if(type==1){
 		nodeMarker.color.b = 1.0f;
 		nodeMarker.color.g = 0.0f;
 	}
@@ -191,40 +227,40 @@ void rrt::marker(int markerNum, int connection){
 	nodeMarker.scale.y = 0.4f;
 	nodeMarker.scale.z = 0.1f;
 	
-	nodeMarker.pose.position = tree[markerNum].point;
+	nodeMarker.pose = pose;
 	nodeMarker.pose.position.z = 0.01f;
 	nodeMarker.pose.orientation.w = 1.0f;
 	
-	pubMarker.publish(nodeMarker);
+	pubMarker.publish(nodeMarker);	
+}
+
+void rrt::markerLine(geometry_msgs::Pose pose1, geometry_msgs::Pose pose2, int type){
+  //type: 0-final path, 1-generic 
+  
+
+	visualization_msgs::Marker treeMarker;
+	treeMarker.type = visualization_msgs::Marker::LINE_LIST;
+	treeMarker.action = visualization_msgs::Marker::ADD;
+
+	treeMarker.header.frame_id = "map";
+	treeMarker.ns = "tree";
+	treeMarker.id = nodeCounter;
+
+	treeMarker.color.b = 1.0f;
+	treeMarker.color.a = 1.0f;
 	
-	//Tree
-	
-	if(true){
-		visualization_msgs::Marker treeMarker;
-		treeMarker.type = visualization_msgs::Marker::LINE_LIST;
-		nodeMarker.action = visualization_msgs::Marker::ADD;
-	
-		treeMarker.header.frame_id = "map";
-		treeMarker.ns = "tree";
-		treeMarker.id = markerNum;
-	
-		treeMarker.color.b = 1.0f;
-		treeMarker.color.a = 1.0f;
-		
-		if(connection == 1){
-			treeMarker.color.b = 0.0f;
-			treeMarker.color.r = 1.0f;
-		}
-	
-		treeMarker.scale.x = 0.1f;
-		treeMarker.pose.orientation.w = 1.0f;
-	
-		treeMarker.points.push_back(tree[markerNum].point);
-		treeMarker.points.push_back(tree[tree[markerNum].parentID].point);
-	
-		pubMarker.publish(treeMarker);
+	if(type == 0){
+		treeMarker.color.b = 0.0f;
+		treeMarker.color.r = 1.0f;
 	}
-	
+
+	treeMarker.scale.x = 0.1f;
+	treeMarker.pose.orientation.w = 1.0f;
+
+	treeMarker.points.push_back(pose1.position);
+	treeMarker.points.push_back(pose2.position);
+
+	pubMarker.publish(treeMarker);
 }
 
 void rrt::clearMarker(){

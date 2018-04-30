@@ -1,6 +1,6 @@
 #include <ros/ros.h>
 
-#include "robot_rrt_planning.h"
+#include "robot_rrt_command.h"
 
 int main(int argc, char **argv){
   
@@ -13,7 +13,7 @@ int main(int argc, char **argv){
   ros::Rate s(50);
   ros::spinOnce();
   
-  int connection;
+  int success;
   
   
   while(ros::ok()){
@@ -22,22 +22,19 @@ int main(int argc, char **argv){
     
     if(robot_rrt.initialPoseExist && robot_rrt.mapGoalExist){
       
-      robot_rrt.distanceX = robot_rrt.tree[0].point.x - robot_rrt.tree[1].point.x;
-      robot_rrt.distanceY = robot_rrt.tree[0].point.y - robot_rrt.tree[1].point.y;
+      robot_rrt.distanceX = robot_rrt.tree[0].endPose.position.x - robot_rrt.tree[1].endPose.position.x;
+      robot_rrt.distanceY = robot_rrt.tree[0].endPose.position.y - robot_rrt.tree[1].endPose.position.y;
+      robot_rrt.tree[1].distanceToGoal = sqrt(pow(robot_rrt.distanceX,2) + pow(robot_rrt.distanceY,2));
       
-      while(robot_rrt.nodeCounter < robot_rrt.maxNodes){
+      while(robot_rrt.nodeCounter < robot_rrt.maxNodes && ros::ok()){
       	//scanf("%c");
-        robot_rrt.generateCmd();
-        connection = robot_rrt.closestNode();
+        success = robot_rrt.generateCmd();
         
-        if(connection == 0 || connection == 1){
- 	        robot_rrt.marker(robot_rrt.nodeCounter, connection);
-        	robot_rrt.nodeCounter++;
-				}				
+        if(success==0)
+          robot_rrt.nodeCounter++;			
 				        
         if(robot_rrt.pathFound){
           printf("~~~creating path~~~\n");
-          robot_rrt.createPath();
           break;
         }
         //usleep(100);
@@ -50,7 +47,5 @@ int main(int argc, char **argv){
     
     r.sleep();	//does spinning have a performance / stability impact?-> is sleep necessary?
   }
-
-  sleep(1);
   
 }
