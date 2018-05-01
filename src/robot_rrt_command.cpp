@@ -10,10 +10,13 @@ int main(int argc, char **argv){
   robot_rrt.clearMarker();
   
   ros::Rate r(10);
-  ros::Rate s(50);
+  ros::Rate s(1000);
   ros::spinOnce();
   
   int success;
+  
+  ros::Publisher pubCmd;
+  pubCmd = nh.advertise<geometry_msgs::Twist>("robot_0/cmd_vel", 50, true);
   
   
   while(ros::ok()){
@@ -31,17 +34,36 @@ int main(int argc, char **argv){
         success = robot_rrt.generateCmd();
         
         if(success==0)
-          robot_rrt.nodeCounter++;			
+          robot_rrt.nodeCounter++;
+          
+        if(success==-1){
+          printf("failed creating cmd. tracing back...\n");
+          robot_rrt.nodeCounter-=2;
+          //tell generateCmd not to follow same path if it fails repeatedly		
+				}        
 				        
         if(robot_rrt.pathFound){
           printf("~~~creating path~~~\n");
+          //robot_rrt.createPath();
           break;
         }
         //usleep(100);
         s.sleep();
       }
     }
+    
     if(robot_rrt.pathFound == true){
+      //TODO loop sending commands to robot with certain rate-> ros::Rate
+      //TODO run multiple times and save cmd lists, before sending commands. choose cheapest cmd list and then send
+      /*
+      ros::Rate cmdRate(0.5);
+      
+      for(int n = 1; n<=robot_rrt.nodesToGoal; n++){
+        pubCmd.publish(robot_rrt.tree[n].cmd);
+        cmdRate.sleep();
+      }
+      pubCmd.publish(robot_rrt.tree[0].cmd);
+      */
       break;
     }
     
