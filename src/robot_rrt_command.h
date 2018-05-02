@@ -333,15 +333,15 @@ void rrt::markerLine(geometry_msgs::Pose pose, int type){
 
 void rrt::createPath(){
   
-  for(int n = 2; n <= nodesToGoal; n++){
+  for(int n = 2; n < nodesToGoal; n++){
 		float dx = 0;
 		float dy = 0;//TODO declare tempPose
 		geometry_msgs::Pose tempPose;
 		float T = timeStep;
 		int subSteps = interpolationSteps;
 		
-		float angz = tree[n-1].cmd.angular.z;
-		float d =	tree[n-1].cmd.linear.x*T/subSteps;
+		float angz = tree[n].cmd.angular.z;
+		float d =	tree[n].cmd.linear.x*T/subSteps;
 	  tempPose.orientation.z = tree[n-1].endPose.orientation.z;
     tempPose.position.x = tree[n-1].endPose.position.x -d*sin(tempPose.orientation.z);
 	  tempPose.position.y = tree[n-1].endPose.position.y +d*cos(tempPose.orientation.z);  

@@ -44,7 +44,7 @@ int main(int argc, char **argv){
 				        
         if(robot_rrt.pathFound){
           printf("~~~creating path~~~\n");
-          //robot_rrt.createPath();
+          robot_rrt.createPath();
           break;
         }
         //usleep(100);
