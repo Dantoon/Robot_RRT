@@ -1,6 +1,6 @@
 #include <ros/ros.h>
 
-#include "robot_rrt_command.h"
+#include "command_rrt.h"
 
 int main(int argc, char **argv){
   
@@ -55,15 +55,15 @@ int main(int argc, char **argv){
     if(robot_rrt.pathFound == true){
       //TODO loop sending commands to robot with certain rate-> ros::Rate
       //TODO run multiple times and save cmd lists, before sending commands. choose cheapest cmd list and then send
-      /*
-      ros::Rate cmdRate(0.5);
+      
+      ros::Rate cmdRate(1/robot_rrt.timeStep);
       
       for(int n = 1; n<=robot_rrt.nodesToGoal; n++){
-        pubCmd.publish(robot_rrt.tree[n].cmd);
         cmdRate.sleep();
+        pubCmd.publish(robot_rrt.tree[n].cmd);
       }
       pubCmd.publish(robot_rrt.tree[0].cmd);
-      */
+      
       break;
     }
     

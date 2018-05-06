@@ -27,6 +27,7 @@ class rrt{
     
     rrtNode tree[10000];
     
+    float timeStep;
     unsigned int nodeCounter;
     int maxNodes;
     int nodesToGoal;
@@ -56,7 +57,6 @@ class rrt{
     float badAngle;
   	float robotSize;
   	
-  	float timeStep;
   	int interpolationSteps;
   	
     rrtNode closestNodes[10];
@@ -133,6 +133,14 @@ void rrt::goalCallback(const geometry_msgs::Pose& msg){
 void rrt::initialPoseCallback(const nav_msgs::Odometry& msg){
   if(initialPoseExist == false){
     tree[1].endPose = msg.pose.pose;
+    float theta = 0.0f;
+    
+    if(tree[1].endPose.orientation.z > 0)
+      theta = acos(tree[1].endPose.orientation.w)*2;     //TODO what is w-koordinate? why is initial orientation wrong
+    else
+      theta = -acos(tree[1].endPose.orientation.w)*2;
+             
+    tree[1].endPose.orientation.z = theta;
     
     initialPoseExist = true;
     printf("Initial Position is set to x=%f and y=%f\n", tree[1].endPose.position.x, tree[1].endPose.position.y);
@@ -179,26 +187,27 @@ int rrt::generateCmd(){
 	  int i;                      //counter for for-loops
 	  
 	  tempPose.orientation.z = tree[nodeCounter-1].endPose.orientation.z;
-    tempPose.position.x = tree[nodeCounter-1].endPose.position.x -d*sin(tempPose.orientation.z);
-	  tempPose.position.y = tree[nodeCounter-1].endPose.position.y +d*cos(tempPose.orientation.z);
+    tempPose.position.x = tree[nodeCounter-1].endPose.position.x;
+	  tempPose.position.y = tree[nodeCounter-1].endPose.position.y;
 	  	  
-	  for(i = 1; i<subSteps; i++){
+	  for(i = 0; i<subSteps; i++){
 	  
 	    //markerLine(tempPose, 1);
-	    tempPose.orientation.z += angz*T/(subSteps-1);
 	  
-	    dx = -d*sin(tempPose.orientation.z);
+	    dx = d*cos(tempPose.orientation.z);
 	    tempPose.position.x += dx;
 
- 	    dy = d*cos(tempPose.orientation.z);
+ 	    dy = d*sin(tempPose.orientation.z);
 	    tempPose.position.y += dy;
+	    
+	    tempPose.orientation.z += angz*T/(subSteps-1);
 	   
 	    if(collisionCheck(tempPose.position)==true){
 	      //printf("collision in substeps, while creating path...\n");
 	      break;
 	    }
 	  }	  
-	  
+	  tempPose.orientation.z += angz*T/(subSteps-1);	  
 	  
 	//choose path closest to goal
 		tempDistance = sqrt(pow(tree[0].endPose.position.x - tempPose.position.x,2)+pow(tree[0].endPose.position.y - tempPose.position.y,2));
@@ -288,9 +297,9 @@ void rrt::markerPoint(geometry_msgs::Pose pose, int type){
 	nodeMarker.color.g = 1.0f;
 	nodeMarker.color.a = 1.0f;
 	
-	nodeMarker.scale.x = 0.4f;
-	nodeMarker.scale.y = 0.4f;
-	nodeMarker.scale.z = 0.1f;
+	nodeMarker.scale.x = 0.2f;
+	nodeMarker.scale.y = 0.2f;
+	nodeMarker.scale.z = 0.01f;
 	
 	nodeMarker.pose = pose;
 	nodeMarker.pose.position.z = 0.01f;
@@ -321,7 +330,7 @@ void rrt::markerLine(geometry_msgs::Pose pose, int type){
 	treeMarker.color.b = 1.0f;
 	treeMarker.color.a = 1.0f;
 
-	treeMarker.scale.x = 0.1f;
+	treeMarker.scale.x = 0.05f;
 	treeMarker.pose.orientation.w = 1.0f;
 	pose.position.z = 0.1f;
 
@@ -349,10 +358,10 @@ void rrt::createPath(){
 	    markerLine(tempPose, 1);
 	    tempPose.orientation.z += angz*T/(subSteps-1);
 	  
-	    dx = -d*sin(tempPose.orientation.z);
+	    dx = d*cos(tempPose.orientation.z);
 	    tempPose.position.x += dx;
 
- 	    dy = d*cos(tempPose.orientation.z);
+ 	    dy = d*sin(tempPose.orientation.z);
 	    tempPose.position.y += dy;
 	  }	
 	}

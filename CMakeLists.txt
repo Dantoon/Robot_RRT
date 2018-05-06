@@ -208,6 +208,10 @@ add_dependencies(robot_rrt_planning ${catkin_EXPORTED_TARGETS})
 #target_link_libraries(collision_test ${catkin_LIBRARIES})
 #add_dependencies(collision_test ${catkin_EXPORTED_TARGETS})
 
-add_executable(robot_rrt_command src/robot_rrt_command.cpp)
-target_link_libraries(robot_rrt_command ${catkin_LIBRARIES})
-add_dependencies(robot_rrt_command ${catkin_EXPORTED_TARGETS})
+add_executable(command_sampling src/command_sampling.cpp)
+target_link_libraries(command_sampling ${catkin_LIBRARIES})
+add_dependencies(command_sampling ${catkin_EXPORTED_TARGETS})
+
+add_executable(command_rrt src/command_rrt.cpp)
+target_link_libraries(command_rrt ${catkin_LIBRARIES})
+add_dependencies(command_rrt ${catkin_EXPORTED_TARGETS})
