@@ -10,7 +10,7 @@ int main(int argc, char **argv){
   robot_rrt.clearMarker();
   
   ros::Rate r(10);
-  ros::Rate s(30);
+  ros::Rate s(50);
   ros::spinOnce();
   
   int connection;
@@ -26,11 +26,12 @@ int main(int argc, char **argv){
       robot_rrt.distanceY = robot_rrt.tree[0].point.y - robot_rrt.tree[1].point.y;
       
       while(robot_rrt.nodeCounter < robot_rrt.maxNodes){
+      	//scanf("%c");
         robot_rrt.generateNode();
         connection = robot_rrt.closestNode();
         
-        if(connection == 0){
- 	        robot_rrt.marker(robot_rrt.nodeCounter);
+        if(connection == 0 || connection == 1){
+ 	        robot_rrt.marker(robot_rrt.nodeCounter, connection);
         	robot_rrt.nodeCounter++;
 				}				
 				        
@@ -50,6 +51,6 @@ int main(int argc, char **argv){
     r.sleep();	//does spinning have a performance / stability impact?-> is sleep necessary?
   }
 
-  sleep(3);
+  sleep(1);
   
 }

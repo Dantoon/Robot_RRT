@@ -32,7 +32,7 @@ class rrt{
     void generateNode();
     int closestNode();
     void createPath();
-    void marker(int markerNum);
+    void marker(int markerNum, int connection);
     void clearMarker();
     
     float goalArea;
@@ -76,7 +76,7 @@ rrt::rrt(ros::NodeHandle nh){
   pathFound = false;
   nodeCounter = 2;
   maxNodes = 10000;
-  goalArea = 2;
+  goalArea = 1;
   robotSize = 1;
   
   
@@ -99,9 +99,11 @@ void rrt::goalCallback(const geometry_msgs::Twist& msg){
   tree[0].point.x = msg.linear.x;
   tree[0].point.y = msg.linear.y;
   
+  
+  
   printf("Map Goal is set to x=%f and y=%f\n", tree[0].point.x, tree[0].point.y);
   mapGoalExist = true;
-  marker(0);
+  marker(0,0);
 }
 
 void rrt::initialPoseCallback(const nav_msgs::Odometry& msg){
@@ -115,7 +117,7 @@ void rrt::initialPoseCallback(const nav_msgs::Odometry& msg){
     initialPoseExist = true;
     printf("Initial Position is set to x=%f and y=%f\n", tree[1].point.x, tree[1].point.y);
   }
-  marker(1);
+  marker(1,0);
 }
 
 
@@ -123,17 +125,6 @@ void rrt::generateNode(){
 	//TODO change algorithm to spawn nodes in area roughly in between goal and start. cannot check for in map anymore with costmap (out of bounds is 0 not -1)
   float cellX;
   float cellY;
-  bool occupied = true;
-  
-  /*
-  while(occupied){
-    cellX = rand() % map.info.width;
-    cellY = rand() % map.info.height;
-    if(map.data[cellX*map.info.width + cellY - 1] < 30){
-      occupied = false;
-    }
-  }
-  */
   
   int spawnAreaX = 2*(distanceX)/map.info.resolution;
   int spawnAreaY = 2*(distanceY)/map.info.resolution;
@@ -149,27 +140,20 @@ void rrt::generateNode(){
   else
   	invY = -1;
   
-  while(occupied){
-  	cellX = tree[1].point.x/map.info.resolution + (rand() % spawnAreaX)*invX - spawnAreaX/4;
-  	cellY = tree[1].point.x/map.info.resolution + (rand() % spawnAreaY)*invY - spawnAreaY/4;
+  while(true){
+  	//cell are positions with respect to center of map (map origiin?) in cells (not coordinates)
+  	cellX = (int)(tree[1].point.x/map.info.resolution + ((rand() % spawnAreaX) - spawnAreaX/4)*invX);
+  	cellY = (int)(tree[1].point.y/map.info.resolution + ((rand() % spawnAreaY) - spawnAreaY/4)*invY);
   	printf("cellX:	%f\ncellY:	%f\n", cellX, cellY);
-  	/*
-  	if(map.data[cellX-floor(map.info.origin.position.x/map.info.resolution) + (cellY-1 - floor(map.info.origin.position.y/map.info.resolution))*map.info.width] < 5){
-  		occupied = false;
-  	}
-  	*/
-  	if(map.data[(int)((cellX-1-map.info.origin.position.x/map.info.resolution)*map.info.height) + (int)(cellY - map.info.origin.position.y/map.info.resolution)] < 5){
-  		occupied = false;
+  	//1. convert map origin into cells 2. modify cell location with origin and convert to 1d array
+  	int value = map.data[(int)((cellX-1 - map.info.origin.position.x/map.info.resolution)) + (int)(cellY-1 - map.info.origin.position.y/map.info.resolution)*map.info.width];
+
+  	if(value < 5){
+  		printf("value: %i\n", value);
+  		break;
   	}
   	
-  }
-  
-  
-  //convert pixels to coordinates
-  /*
-  newNode.point.x = cellX * map.info.resolution + map.info.origin.position.x;
-  newNode.point.y = cellY * map.info.resolution + map.info.origin.position.y;
-  */  
+  } 
   
   newNode.point.x = cellX * map.info.resolution + tree[1].point.x;
   newNode.point.y = cellY * map.info.resolution + tree[1].point.y;
@@ -179,8 +163,8 @@ void rrt::generateNode(){
 
 int rrt::closestNode(){
 
-  float closestDistance = 100000000.0f;
-  float distanceTresh = 5;
+  float closestDistance = 10000.0f;
+  float distanceTresh = 10;
   float distance;
   int closestNodeID = -1;
   
@@ -233,7 +217,7 @@ bool rrt::collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point
 	
 	geometry_msgs::Point line[checkPoints+1];
 	
-	/*
+	
 	for(int n=0; n < checkPoints; n++){
 		//add points along path into array in pixels
 		line[n].x = (point1.x + n*(point1.x-point2.x)/checkPoints)*map.info.resolution; 
@@ -246,30 +230,14 @@ bool rrt::collisionCheck(geometry_msgs::Point point1, geometry_msgs::Point point
 	int ko2arr; //saves 1D "koordinates" for 1D array
 	
 	for(int k=0; k<checkPoints; k++){
-		ko2arr = (line[k].y-map.info.width) + (line[k].x);
+		ko2arr = (line[k].y-1-map.info.origin.position.y/map.info.resolution)*map.info.width + (line[k].x-map.info.origin.position.x/map.info.resolution) -1;
 		
 		if(map.data[ko2arr] > 30){
 			printf("collision detected\n");
-			return true;
+			return false;
 		}
-		
-		/*
-		for(int j=0; j<searchRadius; j++){
-		
-			for(int i=0; i<searchRadius; i++){
-				ko2arr = (line[k].y-robotSize*map.info.resolution/2.0f+j)*map.info.width;	//influence of y: which row
-				ko2arr += (line[k].x-robotSize*map.info.resolution/2.0f+i); // influence of x: which column
-				
-				if(map.data[ko2arr]!=0){
-					printf("collision detected\n");
-					return true;
-				}
-			}
-		}
-		*don't forget to comment back when finished
-		
 	}
-	*/
+	
 	printf("no collision\n");
 	return false;
 }
@@ -314,7 +282,7 @@ void rrt::createPath(){
 
 //Visualization
 
-void rrt::marker(int markerNum){
+void rrt::marker(int markerNum, int connection){
 	//Nodes
 	visualization_msgs::Marker nodeMarker;
 	nodeMarker.type = visualization_msgs::Marker::SPHERE;
@@ -347,23 +315,32 @@ void rrt::marker(int markerNum){
 	pubMarker.publish(nodeMarker);
 	
 	//Tree
-	visualization_msgs::Marker treeMarker;
-	treeMarker.type = visualization_msgs::Marker::LINE_LIST;
-	nodeMarker.action = visualization_msgs::Marker::ADD;
 	
-	treeMarker.header.frame_id = "map";
-	treeMarker.ns = "tree";
-	treeMarker.id = markerNum;
+	if(true){
+		visualization_msgs::Marker treeMarker;
+		treeMarker.type = visualization_msgs::Marker::LINE_LIST;
+		nodeMarker.action = visualization_msgs::Marker::ADD;
 	
-	treeMarker.color.b = 1.0f;
-	treeMarker.color.a = 1.0f;
-	treeMarker.scale.x = 0.1f;
-	treeMarker.pose.orientation.w = 1.0f;
+		treeMarker.header.frame_id = "map";
+		treeMarker.ns = "tree";
+		treeMarker.id = markerNum;
 	
-	treeMarker.points.push_back(tree[markerNum].point);
-	treeMarker.points.push_back(tree[tree[markerNum].parentID].point);
+		treeMarker.color.b = 1.0f;
+		treeMarker.color.a = 1.0f;
+		
+		if(connection == 1){
+			treeMarker.color.b = 0.0f;
+			treeMarker.color.r = 1.0f;
+		}
 	
-	pubMarker.publish(treeMarker);
+		treeMarker.scale.x = 0.1f;
+		treeMarker.pose.orientation.w = 1.0f;
+	
+		treeMarker.points.push_back(tree[markerNum].point);
+		treeMarker.points.push_back(tree[tree[markerNum].parentID].point);
+	
+		pubMarker.publish(treeMarker);
+	}
 	
 }
 

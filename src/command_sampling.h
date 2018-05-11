@@ -344,7 +344,7 @@ void rrt::createPath(){
   
   for(int n = 2; n < nodesToGoal; n++){
 		float dx = 0;
-		float dy = 0;//TODO declare tempPose
+		float dy = 0;
 		geometry_msgs::Pose tempPose;
 		float T = timeStep;
 		int subSteps = interpolationSteps;

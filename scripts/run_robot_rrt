@@ -1,21 +1,58 @@
 #!/bin/bash
+#edit from run-robot-pedestrian-sim
 
 my_pid=$$
-echo "process ID is $my_pid"
+echo "My process ID is $my_pid"
 
-echo "launching roscore..."
+echo "Launching roscore..."
 roscore &
-pid = $!
+pid=$!
 
-echo "runnning robot_rrt_planning..."
-rosrun robot_pedestrian_rrt robot_rrt_planning &
-pid = "$pid $!"
+echo "Launching Stage..."
+sleep 2s
+roslaunch multirobot_stage multirobot_stage.launch world_file:=manyDots rviz_config:=robot_pedestrian_stage &
+pid="$pid $!"
 
-echo "running controller..."
-rosrun robot_pedestrian_rrt controller &
-pid = "$pid $!"
+echo "Loading initialisation parameters..."
+rosparam load $(rospack find multirobot_stage)/scripts/initial_poses.yaml &
 
-echo "set goal to [20,0,0]"
-rostopic pub /map_goal geometry_msgs/Topic '[20,0,0]' '[0,0,0]' -1
+echo "Launching map server..."
+roslaunch nav_bundle map_server_stage.launch &
+# roslaunch nav_bundle map_server_stage.launch &
+pid="$pid $!"
 
+echo "Launching navigation stack..."
+sleep 2s
+for i in `seq 0 1`;
+do
+  roslaunch nav_bundle single_navigation_stage.launch robot_name:=robot_$i x:="$(rosparam get /robot_$i/x)" y:="$(rosparam get /robot_$i/y)" yaw:="$(rosparam get /robot_$i/a)" &
+  pid="$pid $!"
+  sleep 2s
+done
 
+echo "Launching pedestrian bounce controller..."
+roslaunch multirobot_stage bouncer.launch ns:=robot_1 &
+pid="$pid $!"
+sleep 2s
+
+#RRT Stuff
+echo "Launching costmap..."
+roslaunch multirobot_stage robot_costmap.launch &
+pid="$pid $!"
+sleep 7s
+
+echo "Run path planning..."
+rosrun robot_pedestrian_rrt command_sampling &
+pid="$pid $!"
+sleep 1s
+
+echo "setting goal..."
+rostopic pub /map_goal geometry_msgs/Pose '[20,5,0]' '[0,0,0,0]' -1 &
+pid="$pid $!"
+sleep 1s
+
+#\RRT Stuff
+
+trap "echo Killing all processes.; kill -2 TERM $pid; exit" SIGINT SIGTERM
+
+sleep 24h
