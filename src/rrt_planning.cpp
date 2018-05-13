@@ -24,125 +24,126 @@ int main(int argc, char **argv){
   ros::NodeHandle nh;
   tree rrt(nh);
   ros::Rate spinRate(10);
+  ros::Rate r(10000);
   
   srand(time(NULL));
+  rrt.clearMarker();
   
 	while(ros::ok()){
 		ros::spinOnce();
 		
 		if(rrt.initialPoseFound && rrt.goalFound && rrt.mapFound){
-		
-			while(pointsInTree < maxPoints-1 && ros::ok()){
-				generatePoint(&rrt);
-				
+		  printf("starting rrt...\n");
+		  
+			while(rrt.pointsInTree < rrt.maxPoints-1 && ros::ok()){
+				rrt.generatePoint();
+				r.sleep();
 				if(rrt.pathFound){
 					printf("path found\n");
 					break;
 				}
 			}
 		}
+		
+	  if(rrt.pathFound){
+	  	printf("path found\n");
+			break;
+	  }
+	  if(rrt.pointsInTree >= rrt.maxPoints-1){
+	    printf("maxPoints exceeded\n");
+	    break;
+	  }
 		spinRate.sleep();
 	}
-  
-	
-
-	return 0;
-}
-
-//------Constructors------
-//------------------------
-
-tree::tree(ros::Nodehandle nh){
-	pointsInTree = 2;
-	mapFound = false;
-	initialPoseFound = false;
-	goalFound = false;
-	pathFound = false;
-	
-	maxPoints = 10000;
-	treePoints = new treePose[maxPoints];
-	
-  subMap = nh.subscribe("robot_0/robot_map/robot_map/costmap", 10, &tree::mapCallback, this);
-  subPose = nh.subscribe("robot_0/robot_map/odom", 10, &tree::mapCallback, this);
-  subGoal = nh.subscribe("map_goal", 10, &tree::mapCallback, this);
-}
-
-tree::treePose::treePose(){
-	cmd.linear.x = 0.0f;
-	cmd.linear.y = 0.0f;
-	cmd.linear.z = 0.0f;
-	cmd.angular.x = 0.0f;
-	cmd.angular.y = 0.0f;
-	cmd.angular.z = 0.0f;
-
-	parent = NULL;
+  return 0;
 }
 
 //---Callback functions---
 //------------------------
-float distance(geometry_msgs::Point point1, geometry_msgs::Point point2)
 
-
-tree::mapCallback(const nav_msgs::OccupanceGrid& msg){
+void tree::mapCallback(const nav_msgs::OccupancyGrid& msg){
 	map = msg;
 	
   mapFound = true;
   printf("map detected\n");
 }
 
-tree::currentPoseCallback(const geometry_msgs::Pose& msg){
+void tree::currentPoseCallback(const nav_msgs::Odometry& msg){
   if(initialPoseFound == false){
 		treePoints[1].id = 1;
-		treePoints[1].pose = msg;
+		treePoints[1].pose = msg.pose.pose;
 		treePoints[1].cost = 0.0f;
     
     initialPoseFound = true;
-    printf("Initial Position is set to x=%f and y=%f\n", tree[1].endPose.position.x, tree[1].endPose.position.y);
+    printf("Initial Position is set to x=%f and y=%f\n", treePoints[1].pose.position.x, treePoints[1].pose.position.y);
+    markerPoint(treePoints[1].pose, 1);
   }
 }
 
-tree::goalCallback(const geometry_msgs::Point& msg){
+void tree::goalCallback(const geometry_msgs::Point& msg){
 	if(goalFound == false){
 		treePoints[0].id = 0;
-		treePoints[0].pose = msg;
+		treePoints[0].pose.position = msg;
 		treePoints[0].cost = 0.0f;
 		
-		goalFound == true;
-		printf("Goal set to x=%f and y=%f\n", tree[0].pose.position.x, tree[0].pose.position.y);
+		goalFound = true;
+		printf("Goal set to x=%f and y=%f\n", treePoints[0].pose.position.x, treePoints[0].pose.position.y);
+    markerPoint(treePoints[1].pose, 0);
 	}
 }
 
 //-------Functions--------
 //------------------------
 
-distance(geometry_msgs::Point point1, geometry_msgs::Point point2){
-	flost distance = sqrt(pow(point1.x-point2.x,2)+pow(point1.y-point2.y,2));
+float tree::distance(geometry_msgs::Point point1, geometry_msgs::Point point2){
+	float distance = sqrt(pow(point1.x-point2.x,2)+pow(point1.y-point2.y,2));
 	return distance;
 }
 
 void tree::generatePoint(){
-	geometry_msgs::Point goal = treePoints[0];
-	geometry_msgs:: Point origin = treePoints[1];
+  printf("generating Point...\n");
+	geometry_msgs::Point goal = treePoints[0].pose.position;
+	geometry_msgs:: Point origin = treePoints[1].pose.position;
 	bool closeEnough = false;
 	bool connectionSuccess = false;
 	int cmdSuccess;
 	
-	geomety_msgs::Point sampledPoint
+	geometry_msgs::Point sampledPoint;
 	
-	int closestId
+	float tempDistance;
+	int closestId;
 	float closestDistance = 10000.0f;
+	
+	//data & calculations for sampling bias
+	float distanceX = goal.x - origin.x;
+	float distanceY = goal.y - origin.y;
+	if(abs(distanceX) < 5)
+	  distanceX = 5;
+	if(abs(distanceY) < 5)
+	  distanceY = 5;
+	
+	int invX = 1, invY = 1; 
+	if(distanceX < 0)
+	  invX = -1;
+	if(distanceY < 0)
+	  invY = -1;
+	
+	
 	
 	while(!connectionSuccess){
 		closeEnough = false;
 		
 		//sampling Point and looking if it's close enough
 		while(!closeEnough){
-			sampledPoint.x = rand() % map.info.width;
-			sampledPoint.y = rand() % map.info.height;
+		  sampledPoint = origin;
+			sampledPoint.x += (rand() % (int)(2*distanceX*1000)) / 1000.0 * invX - distanceX / 2;
+			sampledPoint.y += (rand() % (int)(2*distanceY*1000)) / 1000.0 * invY - distanceY / 2;
+			
 		
 			for(int n = 1; n<pointsInTree; n++){
+				tempDistance = distance(treePoints[n].pose.position, sampledPoint);
 			
-				if(distance(treePoints[n].pose.position, sampledPoint)<closestDistance){
+				if(tempDistance < closestDistance){
 					closestDistance = distance(treePoints[n].pose.position, sampledPoint);
 					closestId = n;
 			
@@ -156,18 +157,28 @@ void tree::generatePoint(){
 		cmdSuccess = generateCommand(sampledPoint, closestId);
 		
 		if(cmdSuccess==0){
+		  printf("closest Point: #%i\n", closestId);
 			connectionSuccess = true;
-			tree[pointsInTree].id = pointsInTree;
-			tree[pointsInTree].parent = &tree[closestId];
+			treePoints[pointsInTree].id = pointsInTree;
+			treePoints[pointsInTree].parentId = treePoints[closestId].id;
+			
 			markerPoint(treePoints[pointsInTree].pose, pointsInTree);
+      markerList(pointsInTree);
+		  
+		  if(distance(treePoints[pointsInTree].pose.position, treePoints[0].pose.position)<2){
+		    pathFound = true;
+		    treePoints[0].parentId = pointsInTree;
+		    printf("%i\n", treePoints[0].parentId);
+		    createPath();
+		  }
 			pointsInTree++;
 		}
 	}
 }
 
-int tree::generateCommand(geometry_msgs::Point goal, int start){
+int tree::generateCommand(geometry_msgs::Point goal, int startId){
 	geometry_msgs::Twist tempCmd;
-	geometry_msgs::Pose tempEndPose;
+	geometry_msgs::Pose tempPose;
 	float tempCost;
 	
 	float closestDistance = 1000.0f;
@@ -189,15 +200,15 @@ int tree::generateCommand(geometry_msgs::Point goal, int start){
 	for(int n = 0; n<samplingNumber; n++){
 		tempCmd.angular.z = (double)(rand() % 1001 -500)/1001*angMax;
 		
-		if(cmdIntegration(temp.cmd.linear.x, treePoints[start].endPose, tempCmd, &tempEndPose, &tempCost)==0){	//TODO saves endPoint and tempCost at pointer location. includes collision checker->returns -1 when collision
-			tempDistance = distance(goal, tempEndPose.position);
+		if(cmdIntegration(tempCmd.linear.x, treePoints[startId].pose, tempCmd, &tempPose, &tempCost)==0){	//TODO saves endPoint and tempCost at pointer location. includes collision checker->returns -1 when collision
+			tempDistance = distance(goal, tempPose.position);
 		
 			if(tempDistance < closestDistance){
 				closestDistance = tempDistance;
 				
-				tree[pointsInTree].pose = tempEndPose;
-				tree[pointsInTree].cmd = tempCmd;
-				tree[pointsInTree].cost = tempCost;
+				treePoints[pointsInTree].pose = tempPose;
+				treePoints[pointsInTree].cmd = tempCmd;
+				treePoints[pointsInTree].cost = tempCost;
 				
 				success = 0;
 			}
@@ -206,7 +217,7 @@ int tree::generateCommand(geometry_msgs::Point goal, int start){
 	return success;
 }
 
-int rrt::cmdIntegration(float speed, geometry_msgs::Pose start, geometry_msgs::Twist cmd, geometry_msgs::Pose* endPtr, float* costPtr){
+int tree::cmdIntegration(float speed, geometry_msgs::Pose start, geometry_msgs::Twist cmd, geometry_msgs::Pose* endPtr, float* costPtr){
 		float dx = 0.0f;
 		float dy = 0.0f;
 		geometry_msgs::Pose tempPose;
@@ -236,7 +247,7 @@ int rrt::cmdIntegration(float speed, geometry_msgs::Pose start, geometry_msgs::T
 	  return 0;
 }
 
-bool rrt::collisionCheck(geometry_msgs::Point point){
+bool tree::collisionCheck(geometry_msgs::Point point){
   float x = point.x;
   float y = point.y;
   bool collision = false;
@@ -258,4 +269,24 @@ bool rrt::collisionCheck(geometry_msgs::Point point){
     //printf("collision detected\n");
   }
   return collision;
+}
+
+geometry_msgs::Point tree::cellToCoord(int cell){
+  geometry_msgs::Point coord;
+  int cellX = cell % map.info.width + 1;
+  int cellY = cell / map.info.height - 1;
+  
+  coord.x = cellX * map.info.resolution + map.info.origin.position.x;
+  coord.y = cellY * map.info.resolution + map.info.origin.position.y;
+  
+  return coord;
+}
+
+int tree::coordToCell(geometry_msgs::Point coord){
+  float cell = 0;
+
+  cell += (coord.x - map.info.origin.position.x) / map.info.resolution;
+  cell += (coord.y - map.info.origin.position.y) / map.info.resolution * map.info.width;
+  
+  return (int)(cell);
 }
