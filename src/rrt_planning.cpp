@@ -24,7 +24,7 @@ int main(int argc, char **argv){
   ros::NodeHandle nh;
   tree rrt(nh);
   ros::Rate spinRate(10);
-  ros::Rate r(10000);
+  ros::Rate r(100000);
   
   srand(time(NULL));
   rrt.clearMarker();
@@ -37,7 +37,9 @@ int main(int argc, char **argv){
 		  
 			while(rrt.pointsInTree < rrt.maxPoints-1 && ros::ok()){
 				rrt.generatePoint();
-				r.sleep();
+				//r.sleep();
+				usleep(5000);
+				
 				if(rrt.pathFound){
 					printf("path found\n");
 					break;
@@ -88,7 +90,7 @@ void tree::goalCallback(const geometry_msgs::Point& msg){
 		
 		goalFound = true;
 		printf("Goal set to x=%f and y=%f\n", treePoints[0].pose.position.x, treePoints[0].pose.position.y);
-    markerPoint(treePoints[1].pose, 0);
+    markerPoint(treePoints[0].pose, 0);
 	}
 }
 

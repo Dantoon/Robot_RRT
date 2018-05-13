@@ -117,7 +117,7 @@ void tree::markerPoint(geometry_msgs::Pose pose, int type){
 	
 	nodeMarker.action = visualization_msgs::Marker::ADD;
 	
-	nodeMarker.color.g = 1.0f;
+	nodeMarker.color.b = 1.0f;
 	nodeMarker.color.a = 1.0f;
 	
 	nodeMarker.scale.x = 0.2f;
@@ -130,11 +130,11 @@ void tree::markerPoint(geometry_msgs::Pose pose, int type){
 	
 	if(type==0){
 		nodeMarker.color.r = 1.0f;
-		nodeMarker.color.g = 0.0f;
+		nodeMarker.color.b = 0.0f;
 	}
 	if(type==1){
-		nodeMarker.color.b = 1.0f;
-		nodeMarker.color.g = 0.0f;
+		nodeMarker.color.g = 1.0f;
+		nodeMarker.color.b = 0.0f;
 	}
 
 	pubMarker.publish(nodeMarker);	
