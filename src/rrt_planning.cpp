@@ -1,4 +1,5 @@
 #include "rrt_planning.h"
+#include <tf/transform_datatypes.h>
 
 
 
@@ -47,15 +48,20 @@ int main(int argc, char **argv){
 			}
 		}
 		
-	  if(rrt.pathFound){
-	  	printf("path found\n");
-			break;
-	  }
+    if(rrt.pathFound == true){
+      //TODO loop sending commands to robot with certain rate-> ros::Rate
+      //TODO run multiple times and save cmd lists, before sending commands. choose cheapest cmd list and then send
+      printf("sending commands...\n");
+      rrt.pathCmd();
+      break;
+    }
+    
 	  if(rrt.pointsInTree >= rrt.maxPoints-1){
 	    printf("maxPoints exceeded\n");
 	    break;
 	  }
 		spinRate.sleep();
+		
 	}
   return 0;
 }
@@ -291,4 +297,23 @@ int tree::coordToCell(geometry_msgs::Point coord){
   cell += (coord.y - map.info.origin.position.y) / map.info.resolution * map.info.width;
   
   return (int)(cell);
+}
+
+void tree::pathCmd(){
+	ros::Rate cmdRate(1);
+  treePose pathCmd = treePoints[treePoints[0].parentId];
+  int tempId = 1;
+   
+	while(pathCmd.id != 0){
+			
+		while(pathCmd.parentId != tempId){
+			pathCmd = treePoints[pathCmd.parentId];
+		}
+				
+		tempId = pathCmd.id;
+		cmdRate.sleep();
+		pubCmd.publish(treePoints[tempId].cmd);
+	}
+			
+	pubCmd.publish(treePoints[0].cmd);
 }

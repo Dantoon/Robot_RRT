@@ -30,6 +30,7 @@ class tree{
 		float distance(geometry_msgs::Point point1, geometry_msgs::Point point2);
 		geometry_msgs::Point cellToCoord(int cell);
 		int coordToCell(geometry_msgs::Point coord);
+		void pathCmd();
     
     void markerPoint(geometry_msgs::Pose pose, int type);
     void clearMarker();
@@ -39,7 +40,7 @@ class tree{
     visualization_msgs::Marker treeMarker;
     	
 	private:
-	   struct treePose{
+	  struct treePose{
     	int id;
     	geometry_msgs::Pose pose;
     	geometry_msgs::Twist cmd;
@@ -58,6 +59,7 @@ class tree{
 		ros::Subscriber subPose;
 		ros::Subscriber subGoal;
 		ros::Publisher pubMarker;
+		ros::Publisher pubCmd;
 		
 		void mapCallback(const nav_msgs::OccupancyGrid& map_msg);
 		void currentPoseCallback(const nav_msgs::Odometry& pose_msg);
@@ -78,7 +80,8 @@ tree::tree(ros::NodeHandle nh){
 	treePoints = new treePose[maxPoints];
 	maxPointDistance = 1.0f;
 	interpolationSteps = 10;
-		
+	
+	pubCmd = nh.advertise<geometry_msgs::Twist>("robot_0/cmd_vel",50,true);	
   pubMarker = nh.advertise<visualization_msgs::Marker>("treepoints",50,true);
   subMap = nh.subscribe("robot_0/robot_map/robot_map/costmap", 10, &tree::mapCallback, this);
   subPose = nh.subscribe("robot_0/odom", 10, &tree::currentPoseCallback, this);
