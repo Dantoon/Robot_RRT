@@ -1,6 +1,6 @@
 #include "rrt_planning.h"
 #include <tf/transform_datatypes.h>
-
+#include <angles/angles.h>
 
 
 int main(int argc, char **argv){
@@ -81,6 +81,13 @@ void tree::currentPoseCallback(const nav_msgs::Odometry& msg){
 		treePoints[1].id = 1;
 		treePoints[1].pose = msg.pose.pose;
 		treePoints[1].cost = 0.0f;
+		
+		treePoints[1].cmd.linear.x = 0.0f;
+		treePoints[1].cmd.linear.y = 0.0f;
+		treePoints[1].cmd.linear.z = 0.0f;
+		treePoints[1].cmd.angular.x = 0.0f;
+		treePoints[1].cmd.angular.y = 0.0f;
+		treePoints[1].cmd.angular.z = 0.0f;
     
     initialPoseFound = true;
     printf("Initial Position is set to x=%f and y=%f\n", treePoints[1].pose.position.x, treePoints[1].pose.position.y);
@@ -93,6 +100,13 @@ void tree::goalCallback(const geometry_msgs::Point& msg){
 		treePoints[0].id = 0;
 		treePoints[0].pose.position = msg;
 		treePoints[0].cost = 0.0f;
+		
+		treePoints[0].cmd.linear.x = 0.0f;
+		treePoints[0].cmd.linear.y = 0.0f;
+		treePoints[0].cmd.linear.z = 0.0f;
+		treePoints[0].cmd.angular.x = 0.0f;
+		treePoints[0].cmd.angular.y = 0.0f;
+		treePoints[0].cmd.angular.z = 0.0f;
 		
 		goalFound = true;
 		printf("Goal set to x=%f and y=%f\n", treePoints[0].pose.position.x, treePoints[0].pose.position.y);
@@ -208,7 +222,7 @@ int tree::generateCommand(geometry_msgs::Point goal, int startId){
 	for(int n = 0; n<samplingNumber; n++){
 		tempCmd.angular.z = (double)(rand() % 1001 -500)/1001*angMax;
 		
-		if(cmdIntegration(tempCmd.linear.x, treePoints[startId].pose, tempCmd, &tempPose, &tempCost)==0){	//TODO saves endPoint and tempCost at pointer location. includes collision checker->returns -1 when collision
+		if(cmdIntegration(tempCmd.linear.x, treePoints[startId].pose, tempCmd, &tempPose, &tempCost)==0){
 			tempDistance = distance(goal, tempPose.position);
 		
 			if(tempDistance < closestDistance){
@@ -231,10 +245,10 @@ int tree::cmdIntegration(float speed, geometry_msgs::Pose start, geometry_msgs::
 		geometry_msgs::Pose tempPose;
 		float T = maxPointDistance/speed;
 		int subSteps = interpolationSteps;
-		
+				
 		float angz = cmd.angular.z;
 		float d =	speed*T/subSteps;
-	  tempPose.orientation.z = start.orientation.z;
+	  tempPose.orientation.z = tf::getYaw(start.orientation);
     tempPose.position.x = start.position.x - d*sin(tempPose.orientation.z);
 	  tempPose.position.y = start.position.y + d*cos(tempPose.orientation.z);
 	   
@@ -250,6 +264,13 @@ int tree::cmdIntegration(float speed, geometry_msgs::Pose start, geometry_msgs::
 	    if(collisionCheck(tempPose.position))
 	    	return -1;
 	  }
+	  tf::Quaternion q_rot, q_new, q_orig;
+		tf::quaternionMsgToTF(start.orientation, q_orig);
+	  q_rot = tf::createQuaternionFromRPY(0,0,cmd.angular.z*T);
+	  q_new = q_rot*q_orig;
+	  q_new.normalize();
+		tf::quaternionTFToMsg(q_new, tempPose.orientation);
+	  
 	  *endPtr = tempPose;
 	  *costPtr = speed*T;
 	  return 0;

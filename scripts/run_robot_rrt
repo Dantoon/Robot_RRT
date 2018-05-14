@@ -42,12 +42,12 @@ pid="$pid $!"
 sleep 7s
 
 echo "Run path planning..."
-rosrun robot_pedestrian_rrt command_sampling &
+rosrun robot_pedestrian_rrt rrt_planning &
 pid="$pid $!"
 sleep 1s
 
 echo "setting goal..."
-rostopic pub /map_goal geometry_msgs/Pose '[20,5,0]' '[0,0,0,0]' -1 &
+rostopic pub -1 /map_goal geometry_msgs/Point -- 20 5 0 &
 pid="$pid $!"
 sleep 1s
 
