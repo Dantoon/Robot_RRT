@@ -81,7 +81,7 @@ tree::tree(ros::NodeHandle nh){
 	maxPointDistance = 1.0f;
 	interpolationSteps = 10;
 	
-	pubCmd = nh.advertise<geometry_msgs::Twist>("robot_0/cmd_vel",50,true);	
+	pubCmd = nh.advertise<geometry_msgs::Twist>("/cmds",50,true);	
   pubMarker = nh.advertise<visualization_msgs::Marker>("treepoints",50,true);
   subMap = nh.subscribe("robot_0/robot_map/robot_map/costmap", 10, &tree::mapCallback, this);
   subPose = nh.subscribe("robot_0/odom", 10, &tree::currentPoseCallback, this);

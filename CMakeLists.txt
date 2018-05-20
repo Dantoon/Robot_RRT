@@ -200,18 +200,22 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-add_executable(robot_rrt_planning src/robot_rrt_planning.cpp)
-target_link_libraries(robot_rrt_planning ${catkin_LIBRARIES})
-add_dependencies(robot_rrt_planning ${catkin_EXPORTED_TARGETS})
+#add_executable(robot_rrt_planning src/robot_rrt_planning.cpp)
+#target_link_libraries(robot_rrt_planning ${catkin_LIBRARIES})
+#add_dependencies(robot_rrt_planning ${catkin_EXPORTED_TARGETS})
 
 #add_executable(collision_test src/collision_test.cpp)
 #target_link_libraries(collision_test ${catkin_LIBRARIES})
 #add_dependencies(collision_test ${catkin_EXPORTED_TARGETS})
 
-add_executable(command_sampling src/command_sampling.cpp)
-target_link_libraries(command_sampling ${catkin_LIBRARIES})
-add_dependencies(command_sampling ${catkin_EXPORTED_TARGETS})
+#add_executable(command_sampling src/command_sampling.cpp)
+#target_link_libraries(command_sampling ${catkin_LIBRARIES})
+#add_dependencies(command_sampling ${catkin_EXPORTED_TARGETS})
 
 add_executable(rrt_planning src/rrt_planning.cpp)
 target_link_libraries(rrt_planning ${catkin_LIBRARIES})
 add_dependencies(rrt_planning ${catkin_EXPORTED_TARGETS})
+
+add_executable(controller src/controller.cpp)
+target_link_libraries(controller ${catkin_LIBRARIES})
+add_dependencies(controller ${catkin_EXPORTED_TARGETS})

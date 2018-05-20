@@ -321,7 +321,7 @@ int tree::coordToCell(geometry_msgs::Point coord){
 }
 
 void tree::pathCmd(){
-	ros::Rate cmdRate(1);
+	ros::Rate pubRate(1);
   treePose pathCmd = treePoints[treePoints[0].parentId];
   int tempId = 1;
    
@@ -332,7 +332,7 @@ void tree::pathCmd(){
 		}
 				
 		tempId = pathCmd.id;
-		cmdRate.sleep();
+		pubRate.sleep();
 		pubCmd.publish(treePoints[tempId].cmd);
 	}
 			
