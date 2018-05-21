@@ -32,6 +32,14 @@ class tree{
 		int coordToCell(geometry_msgs::Point coord);
 		void pathCmd();
     
+    //replanning
+    geometry_msgs::Point closestPoint1;
+    geometry_msgs::Point closestPoint2;
+    float devTolerance;
+    void devCheck(nav_msgs::Odometry);
+    //void dynCollisionCheck();
+    
+    //visualization
     void markerPoint(geometry_msgs::Pose pose, int type);
     void clearMarker();
     void createPath();

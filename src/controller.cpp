@@ -23,6 +23,7 @@ int main(int argc, char **argv){
 
 void controller::cmdNumCallback(const std_msgs::Int16& msg){
   cmdNum = msg.data;
+  pathCmds = new geometry_msgs::Twist[cmdNum];
 }
 
 void controller::cmdCallback(const geometry_msgs::Twist& msg){

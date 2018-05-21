@@ -4,23 +4,6 @@
 
 
 int main(int argc, char **argv){
-	/*
-	initialize tree
-	get costmap
-	get current position
-	get goal
-	while(pathNotFound)
-		while(true)
-			generate Point in certain area	 
-			if(Point close enough to other point in tree)
-				break
-		find best command to get to point
-		integrate command and save command and endpoint to tree
-		if(close enough to goal)
-			pathNotFound = false
-	send commands to controller
-	wait if needs to replan
-	*/
 	ros::init(argc, argv, "rrt_planning") ;
   ros::NodeHandle nh;
   tree rrt(nh);
@@ -92,6 +75,9 @@ void tree::currentPoseCallback(const nav_msgs::Odometry& msg){
     initialPoseFound = true;
     printf("Initial Position is set to x=%f and y=%f\n", treePoints[1].pose.position.x, treePoints[1].pose.position.y);
     markerPoint(treePoints[1].pose, 1);
+  }
+  if(pathFound == true){
+    devCheck(msg);
   }
 }
 
@@ -338,3 +324,38 @@ void tree::pathCmd(){
 			
 	pubCmd.publish(treePoints[0].cmd);
 }
+
+//--------Replan----------
+//------------------------
+
+void tree::devCheck(nav_msgs::Odometry odom){
+  if(distance(odom.pose.pose.position, closestPoint1) > devTolerance){
+    printf("large deviation from path. replanning...\n");
+  }
+  if(distance(odom.pose.pose.position, closestPoint2) > devTolerance){
+    printf("large deviation from path. replanning...\n");
+  }  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
