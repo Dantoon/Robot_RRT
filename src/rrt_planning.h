@@ -7,6 +7,7 @@
 #include "nav_msgs/OccupancyGrid.h"
 #include "nav_msgs/Odometry.h"
 #include "visualization_msgs/Marker.h"
+#include "std_msgs/Int16.h"
 
 class tree{
 
@@ -68,6 +69,7 @@ class tree{
 		ros::Subscriber subGoal;
 		ros::Publisher pubMarker;
 		ros::Publisher pubCmd;
+		ros::Publisher pubCmdNum;
 		
 		void mapCallback(const nav_msgs::OccupancyGrid& map_msg);
 		void currentPoseCallback(const nav_msgs::Odometry& pose_msg);
@@ -91,6 +93,8 @@ tree::tree(ros::NodeHandle nh){
 	
 	pubCmd = nh.advertise<geometry_msgs::Twist>("/cmds",50,true);	
   pubMarker = nh.advertise<visualization_msgs::Marker>("treepoints",50,true);
+  pubCmdNum = nh.advertise<std_msgs::Int16>("/cmdNum",50,true);
+  
   subMap = nh.subscribe("robot_0/robot_map/robot_map/costmap", 10, &tree::mapCallback, this);
   subPose = nh.subscribe("robot_0/odom", 10, &tree::currentPoseCallback, this);
   subGoal = nh.subscribe("map_goal", 10, &tree::goalCallback, this);

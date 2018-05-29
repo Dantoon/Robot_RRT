@@ -14,6 +14,10 @@ class controller{
     void cmdPub();
 	
 	private:
+		int errCounter;
+		float error[];
+		float Kp, Ki, Kd;
+		float pidControl(float, float);
 	
 		int cmdCounter;
 		int pubCounter;
@@ -41,11 +45,11 @@ controller::controller(ros::NodeHandle nh){
 	cmdOk = false;
 	cmdNum = 0;
 	
-  subCmdNum = nh.subscribe("/points", 10, &controller::cmdNumCallback, this);
+  subCmdNum = nh.subscribe("/cmdNum", 10, &controller::cmdNumCallback, this);
   subCmd = nh.subscribe("/cmds", 10, &controller::cmdCallback, this);
   subCancel = nh.subscribe("/cancel_rrt", 10, &controller::cancelCallback, this);
 
-  pubCmdVel = nh.advertise<geometry_msgs::Twist>("cmd_vel",50,true);
+  pubCmdVel = nh.advertise<geometry_msgs::Twist>("robot_0/cmd_vel",50,true);
 }
 
 

@@ -22,7 +22,7 @@ int main(int argc, char **argv){
 			while(rrt.pointsInTree < rrt.maxPoints-1 && ros::ok()){
 				rrt.generatePoint();
 				//r.sleep();
-				usleep(5000);
+				//usleep(5000);
 				
 				if(rrt.pathFound){
 					printf("path found\n");
@@ -161,7 +161,7 @@ void tree::generatePoint(){
 				}
 			}
 		}
-		//try to steer towards it
+
 		cmdSuccess = generateCommand(sampledPoint, closestId);
 		
 		if(cmdSuccess==0){
@@ -170,8 +170,8 @@ void tree::generatePoint(){
 			treePoints[pointsInTree].id = pointsInTree;
 			treePoints[pointsInTree].parentId = treePoints[closestId].id;
 			
-			markerPoint(treePoints[pointsInTree].pose, pointsInTree);
-      markerList(pointsInTree);
+			//markerPoint(treePoints[pointsInTree].pose, pointsInTree);
+      //markerList(pointsInTree);
 		  
 		  if(distance(treePoints[pointsInTree].pose.position, treePoints[0].pose.position)<2){
 		    pathFound = true;
@@ -216,7 +216,7 @@ int tree::generateCommand(geometry_msgs::Point goal, int startId){
 				
 				treePoints[pointsInTree].pose = tempPose;
 				treePoints[pointsInTree].cmd = tempCmd;
-				treePoints[pointsInTree].cost = tempCost;
+				treePoints[pointsInTree].cost = treePoints[startId].cost + tempCost;
 				
 				success = 0;
 			}
@@ -307,8 +307,13 @@ int tree::coordToCell(geometry_msgs::Point coord){
 }
 
 void tree::pathCmd(){
-	ros::Rate pubRate(1);
+	ros::Rate pubRate(10);
   treePose pathCmd = treePoints[treePoints[0].parentId];
+	std_msgs::Int16 cmdNum;
+	cmdNum.data = treePoints[treePoints[0].parentId].cost + 2; //cmds in between + start and goal cmd
+	pubCmdNum.publish(cmdNum);
+	printf("%i cmds in path\n", cmdNum.data);
+	
   int tempId = 1;
    
 	while(pathCmd.id != 0){
@@ -323,6 +328,7 @@ void tree::pathCmd(){
 	}
 			
 	pubCmd.publish(treePoints[0].cmd);
+	printf("sending complete.\n");
 }
 
 //--------Replan----------

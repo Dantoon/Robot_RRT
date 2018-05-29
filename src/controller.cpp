@@ -11,7 +11,8 @@ int main(int argc, char **argv){
 	
   while(ros::ok){
     ros::spinOnce();
-    if(robot_ctrl.cmdOk){
+    while(robot_ctrl.cmdOk){
+    	printf("publishing cmds...\n");
       pubRate.sleep();
       robot_ctrl.cmdPub();
     }
@@ -29,12 +30,13 @@ void controller::cmdNumCallback(const std_msgs::Int16& msg){
 void controller::cmdCallback(const geometry_msgs::Twist& msg){
   if(cmdNum != 0){
     pathCmds[cmdCounter] = msg;
+    printf("cmd #%i received\n", cmdCounter);
     cmdCounter++;
     
     if(cmdCounter == cmdNum){
      cmdCounter = 0;
      cmdOk = true;
-     printf("path received.\n");
+     printf("path received. %i cmds in path\n", cmdNum);
     }
   }
 }
@@ -47,9 +49,19 @@ void controller::cancelCallback(const std_msgs::Int16& msg){
 	printf("path cancelled.\n");
 }
 
+//-----Functions------
+//--------------------
+float controller::pidControl(float y, float x){
+	error[errCounter] = y - x;
+	//I = sum(error);
+	//D = (error[errCounter]-error[errCounter-1])/Ts;
+	//P = error[errCounter];
+	//ctrl = Kp*P + Ki*I + Kd*D;
+}
+
+
 //-----Publishers-----
 //--------------------
-
 void controller::cmdPub(){
   pubCmdVel.publish(pathCmds[pubCounter]);
   pubCounter++;

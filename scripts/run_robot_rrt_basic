@@ -41,16 +41,6 @@ roslaunch multirobot_stage robot_costmap.launch &
 pid="$pid $!"
 sleep 7s
 
-echo "Run path planning..."
-rosrun robot_pedestrian_rrt rrt_planning &
-pid="$pid $!"
-sleep 1s
-
-echo "Run controller..."
-rosrun robot_pedestrian_rrt controller &
-pid="$pid $!"
-sleep 1s
-
 echo "setting goal..."
 rostopic pub -1 /map_goal geometry_msgs/Point -- 20 5 0 &
 pid="$pid $!"
