@@ -59,19 +59,21 @@ void callback::odomCallback(const nav_msgs::Odometry& msg){
 }
 
 void callback::obstacle1_OdomCallback(const nav_msgs::Odometry& msg){
-  geometry_msgs::Point position = msg.pose.pose.position;
-  bool inView = false;
+	if(mapOk){
+  	geometry_msgs::Point position = msg.pose.pose.position;
+  	bool inView = false;
 
-  float range = pointDistance(robotPose.position, position);
-  float angle = atan2(position.y-robotPose.position.y, position.x-robotPose.position.x);
-  float relativeAngle = angle - tf::getYaw(robotPose.orientation);
-  bool collision = lineCollisionCheck(position, robotPose.position);
+  	float range = pointDistance(robotPose.position, position);
+  	float angle = atan2(position.y-robotPose.position.y, position.x-robotPose.position.x);
+  	float relativeAngle = angle - tf::getYaw(robotPose.orientation);
+  	bool collision = lineCollisionCheck(position, robotPose.position);
 
-  if(range < robotMaxRange && range > robotMinRange && abs(relativeAngle) < robotViewAngle && !collision){
-    inView = true;
-  }
-
-  trackingUpdate(1, inView, position, &head);
+  	if(range < robotMaxRange && range > robotMinRange && abs(relativeAngle) < robotViewAngle && !collision){
+  	  inView = true;
+  	}
+	
+  	trackingUpdate(1, inView, position, &head);
+	}
 }
 
 void callback::mapCallback(const nav_msgs::OccupancyGrid& msg){

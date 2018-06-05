@@ -172,6 +172,7 @@ geometry_msgs::Pose callback::projection(geometry_msgs::Pose startPose, geometry
     if(collisionCheck(endPose.position)){
       //publish to replan
       printf("path blocked. replanning...\n");
+      replan();
     }
   }
   
