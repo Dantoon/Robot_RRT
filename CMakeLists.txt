@@ -219,3 +219,7 @@ add_dependencies(rrt_planning ${catkin_EXPORTED_TARGETS})
 add_executable(controller src/controller.cpp)
 target_link_libraries(controller ${catkin_LIBRARIES})
 add_dependencies(controller ${catkin_EXPORTED_TARGETS})
+
+add_executable(forward_projection src/forward_projection.cpp)
+target_link_libraries(forward_projection ${catkin_LIBRARIES})
+add_dependencies(forward_projection ${catkin_EXPORTED_TARGETS})

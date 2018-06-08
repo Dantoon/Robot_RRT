@@ -8,6 +8,7 @@
 #include "nav_msgs/Odometry.h"
 #include "visualization_msgs/Marker.h"
 #include "std_msgs/Int16.h"
+#include "std_msgs/Bool.h"
 
 class tree{
 
@@ -67,13 +68,17 @@ class tree{
 		ros::Subscriber subMap;
 		ros::Subscriber subPose;
 		ros::Subscriber subGoal;
+		ros::Subscriber subReplan;
+		
 		ros::Publisher pubMarker;
 		ros::Publisher pubCmd;
+		ros::Publisher pubProjection;
 		ros::Publisher pubCmdNum;
 		
-		void mapCallback(const nav_msgs::OccupancyGrid& map_msg);
-		void currentPoseCallback(const nav_msgs::Odometry& pose_msg);
-		void goalCallback(const geometry_msgs::Point& goal_msg);
+		void mapCallback(const nav_msgs::OccupancyGrid&);
+		void currentPoseCallback(const nav_msgs::Odometry&);
+		void goalCallback(const geometry_msgs::Point&);
+		void replanCallback(const std_msgs::Bool&);
 };
 
 //------Constructors------
@@ -91,13 +96,15 @@ tree::tree(ros::NodeHandle nh){
 	maxPointDistance = 1.0f;
 	interpolationSteps = 10;
 	
-	pubCmd = nh.advertise<geometry_msgs::Twist>("/cmds",50,true);	
-  pubMarker = nh.advertise<visualization_msgs::Marker>("treepoints",50,true);
+	pubCmd = nh.advertise<geometry_msgs::Twist>("/robot_0/cmd_vel",50,false);	
+	pubProjection = nh.advertise<geometry_msgs::Twist>("/cmds",500,true);	
+  pubMarker = nh.advertise<visualization_msgs::Marker>("treepoints",50,false);
   pubCmdNum = nh.advertise<std_msgs::Int16>("/cmdNum",50,true);
   
   subMap = nh.subscribe("robot_0/robot_map/robot_map/costmap", 10, &tree::mapCallback, this);
   subPose = nh.subscribe("robot_0/odom", 10, &tree::currentPoseCallback, this);
   subGoal = nh.subscribe("map_goal", 10, &tree::goalCallback, this);
+  subReplan = nh.subscribe("/rrt_replan", 10, &tree::replanCallback, this);
 }
 
 tree::treePose::treePose(){

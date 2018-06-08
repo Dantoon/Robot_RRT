@@ -79,7 +79,7 @@ controller::controller(ros::NodeHandle nh){
 	D = 0.0f;
 	
   subCmdNum = nh.subscribe("/cmdNum", 10, &controller::cmdNumCallback, this);
-  subCmd = nh.subscribe("/cmds", 10, &controller::cmdCallback, this);
+  subCmd = nh.subscribe("/cmds", 50, &controller::cmdCallback, this);
   subCancel = nh.subscribe("/cancel_rrt", 10, &controller::cancelCallback, this);
   subOdom = nh.subscribe("/robot_0/odom", 10, &controller::odomCallback, this);
   subMapMeta = nh.subscribe("/map_metadata", 10, &controller::mapMetaCallback, this);

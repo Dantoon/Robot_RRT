@@ -31,12 +31,12 @@ int main(int argc, char **argv){
 			}
 		}
 		
-    if(rrt.pathFound == true){
-      //TODO loop sending commands to robot with certain rate-> ros::Rate
-      //TODO run multiple times and save cmd lists, before sending commands. choose cheapest cmd list and then send
+    if(rrt.pathFound){
       printf("sending commands...\n");
       rrt.pathCmd();
-      break;
+      
+      if(rrt.pathFound)
+        break;
     }
     
 	  if(rrt.pointsInTree >= rrt.maxPoints-1){
@@ -76,9 +76,6 @@ void tree::currentPoseCallback(const nav_msgs::Odometry& msg){
     printf("Initial Position is set to x=%f and y=%f\n", treePoints[1].pose.position.x, treePoints[1].pose.position.y);
     markerPoint(treePoints[1].pose, 1);
   }
-  if(pathFound == true){
-    devCheck(msg);
-  }
 }
 
 void tree::goalCallback(const geometry_msgs::Point& msg){
@@ -98,6 +95,14 @@ void tree::goalCallback(const geometry_msgs::Point& msg){
 		printf("Goal set to x=%f and y=%f\n", treePoints[0].pose.position.x, treePoints[0].pose.position.y);
     markerPoint(treePoints[0].pose, 0);
 	}
+}
+
+void tree::replanCallback(const std_msgs::Bool& msg){
+  if(msg.data == true){
+    pointsInTree = 2;
+	  initialPoseFound = false;
+	  pathFound = false;
+  }
 }
 
 //-------Functions--------
@@ -173,11 +178,11 @@ void tree::generatePoint(){
 			//markerPoint(treePoints[pointsInTree].pose, pointsInTree);
       //markerList(pointsInTree);
 		  
-		  if(distance(treePoints[pointsInTree].pose.position, treePoints[0].pose.position)<2){
+		  if(distance(treePoints[pointsInTree].pose.position, treePoints[0].pose.position)<0.5){
 		    pathFound = true;
 		    treePoints[0].parentId = pointsInTree;
 		    printf("%i\n", treePoints[0].parentId);
-		    createPath();
+		    //createPath();
 		  }
 			pointsInTree++;
 		}
@@ -226,40 +231,41 @@ int tree::generateCommand(geometry_msgs::Point goal, int startId){
 }
 
 int tree::cmdIntegration(float speed, geometry_msgs::Pose start, geometry_msgs::Twist cmd, geometry_msgs::Pose* endPtr, float* costPtr){
-		float dx = 0.0f;
-		float dy = 0.0f;
-		geometry_msgs::Pose tempPose;
-		float T = maxPointDistance/speed;
-		int subSteps = interpolationSteps;
-				
-		float angz = cmd.angular.z;
-		float d =	speed*T/subSteps;
-	  tempPose.orientation.z = tf::getYaw(start.orientation);
-    tempPose.position.x = start.position.x - d*sin(tempPose.orientation.z);
-	  tempPose.position.y = start.position.y + d*cos(tempPose.orientation.z);
-	   
-	  for(int i = 1; i<subSteps; i++){
-	    tempPose.orientation.z += angz*T/(subSteps-1);
-	  
-	    dx = d*cos(tempPose.orientation.z);
-	    tempPose.position.x += dx;
-
- 	    dy = d*sin(tempPose.orientation.z);
-	    tempPose.position.y += dy;
-	    
-	    if(collisionCheck(tempPose.position))
-	    	return -1;
-	  }
-	  tf::Quaternion q_rot, q_new, q_orig;
-		tf::quaternionMsgToTF(start.orientation, q_orig);
-	  q_rot = tf::createQuaternionFromRPY(0,0,cmd.angular.z*T);
-	  q_new = q_rot*q_orig;
-	  q_new.normalize();
-		tf::quaternionTFToMsg(q_new, tempPose.orientation);
-	  
-	  *endPtr = tempPose;
-	  *costPtr = speed*T;
-	  return 0;
+  //Inputs: startPose, cmd, ptr to endPose and cost
+  //calcs endPoint from startPose and cmd and saves it in endPose
+  //also check Points along path for collision
+  float w = cmd.angular.z;
+  float v = cmd.linear.x;
+  float alpha1 = tf::getYaw(start.orientation);
+  float Ts = 0.2;
+  geometry_msgs::Point point;
+  
+  for(int n = 1; n<=1/Ts; n++){
+    if( w != 0){
+      point.x = start.position.x - v/w * sin(alpha1) + v/w * sin(alpha1 + w*Ts*n);
+      point.y = start.position.y + v/w * cos(alpha1) - v/w * cos(alpha1 + w*Ts*n);
+    }
+    else{
+      point.x = start.position.x + n * v * Ts * cos(alpha1);
+      point.y = start.position.y + n * v * Ts * sin(alpha1);
+    }
+    
+    if(collisionCheck(point))
+      return -1;
+  }
+  
+  float alpha2 = tf::getYaw(start.orientation) + w;
+  
+  geometry_msgs::Pose endPose;
+  endPtr->position.x = point.x;
+  endPtr->position.y = point.y;
+  *costPtr = 1;
+  
+  tf::Quaternion q_end = tf::createQuaternionFromRPY(0,0,alpha2);
+  q_end.normalize();
+	tf::quaternionTFToMsg(q_end, endPtr->orientation);
+	
+  return 0;
 }
 
 bool tree::collisionCheck(geometry_msgs::Point point){
@@ -270,14 +276,13 @@ bool tree::collisionCheck(geometry_msgs::Point point){
   //convert collision to costmap coordinates
   x -= map.info.origin.position.x;
   y -= map.info.origin.position.y;
-  
+ 
   //convert coordinates to cells
   int cellx = x/map.info.resolution;
   int celly = y/map.info.resolution;
   
   //check value at point
   float value = map.data[cellx + celly*map.info.width];
-  //printf("value: %f\n", value);
   
   if(value > 20.0){
     return true;
@@ -307,15 +312,45 @@ int tree::coordToCell(geometry_msgs::Point coord){
 }
 
 void tree::pathCmd(){
-	ros::Rate pubRate(10);
+	ros::Rate pubRate(1);
   treePose pathCmd = treePoints[treePoints[0].parentId];
 	std_msgs::Int16 cmdNum;
-	cmdNum.data = treePoints[treePoints[0].parentId].cost + 2; //cmds in between + start and goal cmd
-	pubCmdNum.publish(cmdNum);
-	printf("%i cmds in path\n", cmdNum.data);
 	
+  cmdNum.data = 0;
+  
+  ros::Time start = ros::Time::now();
+  
+  //count commands
+	while(pathCmd.id != 0){
+	  cmdNum.data++;
+	  pathCmd = treePoints[pathCmd.parentId];
+	}
+	
+	pubCmdNum.publish(cmdNum);
+	pathCmd = treePoints[treePoints[0].parentId];
+	printf("%i cmds in path\n", cmdNum.data);	
   int tempId = 1;
-   
+  usleep(100);
+  
+  //send all cmds to forward Projection as fast as possible
+  while(pathCmd.id != 0){
+			
+		while(pathCmd.parentId != tempId){
+			pathCmd = treePoints[pathCmd.parentId];
+		}
+		
+		tempId = pathCmd.id;
+		pubProjection.publish(treePoints[tempId].cmd);
+		usleep(100);
+	}
+	
+  float duration = ros::Time::now().toSec() - start.toSec();
+  printf("cmds sent to forward projection. duration = %f\n", duration); 
+  pathCmd = treePoints[treePoints[0].parentId]; 
+  tempId = 1;
+  
+  //send commands in specified rate to robot
+  ros::Time cycleStart;
 	while(pathCmd.id != 0){
 			
 		while(pathCmd.parentId != tempId){
@@ -323,25 +358,31 @@ void tree::pathCmd(){
 		}
 				
 		tempId = pathCmd.id;
+			
 		pubRate.sleep();
 		pubCmd.publish(treePoints[tempId].cmd);
+		
+		cycleStart = ros::Time::now();
+		while(ros::Time::now().toSec() - cycleStart.toSec() < 0.9){
+		  ros::spinOnce();
+		  if(!pathFound){
+		  	pubCmd.publish(treePoints[0].cmd);
+		    break;
+		  }
+		}
+		if(!pathFound)
+		  break;
 	}
-			
-	pubCmd.publish(treePoints[0].cmd);
-	printf("sending complete.\n");
+	
+	if(pathFound){
+	  usleep(100);
+	  pubCmd.publish(treePoints[0].cmd);
+	  printf("sending complete.\n");
+	}
+	else
+	  printf("replanning...\n");
 }
 
-//--------Replan----------
-//------------------------
-
-void tree::devCheck(nav_msgs::Odometry odom){
-  if(distance(odom.pose.pose.position, closestPoint1) > devTolerance){
-    printf("large deviation from path. replanning...\n");
-  }
-  if(distance(odom.pose.pose.position, closestPoint2) > devTolerance){
-    printf("large deviation from path. replanning...\n");
-  }  
-}
 
 
 

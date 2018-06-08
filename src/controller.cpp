@@ -1,6 +1,9 @@
 #include <ros/ros.h>
 #include "controller.h"
 #include <tf/transform_datatypes.h>
+#include "visualization_msgs/Marker.h"
+
+void markerPoint(geometry_msgs::Pose, int);
 
 int main(int argc, char **argv){
 
@@ -48,7 +51,7 @@ int main(int argc, char **argv){
         }
       }
     }
-    spinRate.sleep();
+    //spinRate.sleep();
   }
 }
 
@@ -57,6 +60,7 @@ int main(int argc, char **argv){
 
 void controller::cmdNumCallback(const std_msgs::Int16& msg){
   cmdNum = msg.data;
+  printf("receiving %i commands...\n", cmdNum);
   pathCmds = new geometry_msgs::Twist[cmdNum];
   pathCmdsCpy = new geometry_msgs::Twist[cmdNum];
 }
@@ -100,7 +104,7 @@ geometry_msgs::Pose controller::pathPoseSet(geometry_msgs::Pose startPose){
   //TODO: check multiple points and see which is the closest -> use that one to calculate d
   
   float w = pathCmds[pubCounter].angular.z;
-  float v = pathCmds[pubCounter].linear.x / mapMeta.resolution;
+  float v = pathCmds[pubCounter].linear.x;
   float alpha1 = tf::getYaw(startPose.orientation);
   
   float endX = startPose.position.x - v/w * sin(alpha1) + v/w * sin(alpha1 + w*Ts);
@@ -114,6 +118,8 @@ geometry_msgs::Pose controller::pathPoseSet(geometry_msgs::Pose startPose){
   tf::Quaternion q_end = tf::createQuaternionFromRPY(0,0,alpha2);
   q_end.normalize();
 	tf::quaternionTFToMsg(q_end, endPose.orientation);
+
+  markerPoint(endPose, pubCounter);
 	
   return endPose;
 }
@@ -220,6 +226,44 @@ void controller::cmdPub(float ctrl){
   }
 }
 
+
+void markerPoint(geometry_msgs::Pose pose, int id){
+  //type: 0-goal, 1-start, 2-generic, 3-mini
+  ros::NodeHandle nh;
+  ros::Publisher pubMarker;
+  pubMarker = nh.advertise<visualization_msgs::Marker>("treepoints",50,true);
+  
+	visualization_msgs::Marker nodeMarker;
+	nodeMarker.type = visualization_msgs::Marker::SPHERE;
+	
+	nodeMarker.header.frame_id = "map";
+	nodeMarker.ns = "treepoint";
+	nodeMarker.id = id;
+	
+	nodeMarker.action = visualization_msgs::Marker::ADD;
+	
+	nodeMarker.color.b = 1.0f;
+	nodeMarker.color.a = 1.0f;
+	
+	nodeMarker.scale.x = 0.2f;
+	nodeMarker.scale.y = 0.2f;
+	nodeMarker.scale.z = 0.01f;
+	
+	nodeMarker.pose = pose;
+	nodeMarker.pose.position.z = 0.01f;
+	nodeMarker.pose.orientation.w = 1.0f;
+	
+	if(id==0){
+		nodeMarker.color.r = 1.0f;
+		nodeMarker.color.b = 0.0f;
+	}
+	if(id==1){
+		nodeMarker.color.g = 1.0f;
+		nodeMarker.color.b = 0.0f;
+	}
+
+	pubMarker.publish(nodeMarker);	
+}
 
 
 
