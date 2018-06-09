@@ -223,3 +223,7 @@ add_dependencies(controller ${catkin_EXPORTED_TARGETS})
 add_executable(forward_projection src/forward_projection.cpp)
 target_link_libraries(forward_projection ${catkin_LIBRARIES})
 add_dependencies(forward_projection ${catkin_EXPORTED_TARGETS})
+
+add_executable(tracker src/tracker.cpp)
+target_link_libraries(tracker ${catkin_LIBRARIES})
+add_dependencies(tracker ${catkin_EXPORTED_TARGETS})
