@@ -12,6 +12,8 @@ int main(int argc, char **argv){
   pubObstaclePath = nh.advertise<nav_msgs::Odometry>("/tracking", 50, false);
   
   callback callback(nh);
+  while(!callback.mapOk)
+    ros::spinOnce();
   
   while(ros::ok){
     ros::spinOnce();
@@ -20,7 +22,7 @@ int main(int argc, char **argv){
     trackedObject(callback.head, &pubObstaclePath, samplingRate);
     //calculates and publishes all positions and headings as odometry.
         
-    //TODO finish lineCollisionCheck, odomcalc, subscriber of odoms (in forward projection?)
+    //TODO finish -lineCollisionCheck-, odomcalc, subscriber of odoms (in forward projection?)
     
     
     spinRate.sleep();
@@ -41,6 +43,7 @@ callback::callback(ros::NodeHandle nh){
   
   subOdom = nh.subscribe("/robot_0/odom", 1, &callback::odomCallback,this);
   subObstacle1_Odom = nh.subscribe("/robot_1/odom", 1, &callback::obstacle1_OdomCallback, this);
+  subMap = nh.subscribe("/robot_0/robot_map/robot_map/costmap", 10, &callback::mapCallback, this);
 }
 
 obstacle::obstacle(){
@@ -58,16 +61,23 @@ void callback::odomCallback(const nav_msgs::Odometry& msg){
 void callback::obstacle1_OdomCallback(const nav_msgs::Odometry& msg){
   geometry_msgs::Point position = msg.pose.pose.position;
   bool inView = false;
-  
+
   float range = pointDistance(robotPose.position, position);
   float angle = atan2(position.y-robotPose.position.y, position.x-robotPose.position.x);
   float relativeAngle = angle - tf::getYaw(robotPose.orientation);
   bool collision = lineCollisionCheck(position, robotPose.position);
-  
+
   if(range < robotMaxRange && range > robotMinRange && abs(relativeAngle) < robotViewAngle && !collision){
     inView = true;
   }
+
   trackingUpdate(1, inView, position, &head);
+}
+
+void callback::mapCallback(const nav_msgs::OccupancyGrid& msg){
+  map = msg;
+  mapOk = true;
+  printf("Map received.\n");
 }
 
 //-----Obstacle-------
@@ -92,7 +102,8 @@ void obstacle::addNewPoint(geometry_msgs::Point p){
 //--------------------
 
 bool trackedObject(obstacle* ptr, ros::Publisher* pubPtr, int samplingRate){
-  while(ptr != NULL){
+  while(!ptr){
+    printf("id: %i\n", ptr->id);
     if(ptr->pointNum == 3){
       ptr->calculatedOdom = odomCalc(ptr->lastPoints[0], ptr->lastPoints[1], ptr->lastPoints[2], samplingRate);
       pubPtr->publish(ptr->calculatedOdom);
@@ -112,7 +123,8 @@ void trackingUpdate(int id, bool inView, geometry_msgs::Point p, obstacle** head
   //if !in view & exist -> delete obj
   //if !in view % !exist-> nothing
   if(inView){
-    while(ptr != NULL){
+    printf("obstacle in view\n");
+    while(!ptr){
       if(ptr->id == id){
         ptr->addNewPoint(p);
         objExist = true;
@@ -132,7 +144,7 @@ void trackingUpdate(int id, bool inView, geometry_msgs::Point p, obstacle** head
   
   else{
     obstacle* oldPtr = ptr; 
-    while(ptr != NULL){
+    while(!ptr){
       if(ptr->id == id){
         if(*head == ptr){
           //If to be deleted object is first in list, head needs to be changed.
@@ -184,7 +196,7 @@ nav_msgs::Odometry odomCalc(geometry_msgs::Point p1, geometry_msgs::Point p2, ge
   mid2.y = (p3.y+p2.y)/2.0;
   
   if(colinear){
-    odom.twist.twist.linear.x = pointDistance(p3,p1)*(double)(samplingRate);
+    odom.twist.twist.linear.x = pointDistance(p3,p1)*(double)(samplingRate)/2;
     odom.twist.twist.angular.z = 0;
     tf::Quaternion q = tf::createQuaternionFromRPY(0,0,alpha2);
     q.normalize();
@@ -202,9 +214,45 @@ nav_msgs::Odometry odomCalc(geometry_msgs::Point p1, geometry_msgs::Point p2, ge
   return odom;
 }
 
-bool lineCollisionCheck(geometry_msgs::Point p1, geometry_msgs::Point p2){
+bool callback::lineCollisionCheck(geometry_msgs::Point p1, geometry_msgs::Point p2){
+  float distance = pointDistance(p1, p2);
+  int resolutionFactor = 2;
+  int checkPoints = (int)(distance)*resolutionFactor;
+  float angle = atan2(p2.y-p1.y, p2.x-p1.x);
+  geometry_msgs::Point tempPoint;
+  
+  for(int n = 0; n<=checkPoints; n++){
+    tempPoint.x = p1.x + cos(angle)*n*distance/checkPoints;
+    tempPoint.y = p1.y + sin(angle)*n*distance/checkPoints;
+    if(collisionCheck(tempPoint))
+      return true;
+  }
+  
+  return false;
+}
+
+bool callback::collisionCheck(geometry_msgs::Point point){
+  float x = point.x;
+  float y = point.y;
   bool collision = false;
   
+  //convert collision to costmap coordinates
+  x -= map.info.origin.position.x;
+  y -= map.info.origin.position.y;
+  
+  //convert coordinates to cells
+  int cellx = x/map.info.resolution;
+  int celly = y/map.info.resolution;
+
+  //check value at point
+  //printf("cellx = %i    celly = %i\n", cellx, celly);
+  float value = map.data[cellx + celly*map.info.width];
+  
+  //printf("value: %f\n", value);
+  if(value > 20.0){
+    return true;
+    //printf("collision detected\n");
+  }
   return collision;
 }
 

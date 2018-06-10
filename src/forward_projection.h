@@ -22,6 +22,7 @@ class callback{
     
     bool mapOk;
     bool goalOk;
+    bool cmdOk;
     bool cmdNumOk;
     bool startOk;
     int cmdCallbackCntr;
@@ -40,6 +41,7 @@ class callback{
 	  ros::Subscriber subCmd;
 	  ros::Subscriber subStartPose;
 	  ros::Subscriber subReplan;
+	  ros::Subscriber subObstacle;
     
     void odomCallback(const nav_msgs::Odometry&);
     void mapCallback(const nav_msgs::OccupancyGrid&);
@@ -48,6 +50,7 @@ class callback{
     void cmdNumCallback(const std_msgs::Int16&);
     void startPoseCallback(const geometry_msgs::Twist&);
     void replanCallback(const std_msgs::Bool&);
+    void obstacleCallback(const nav_msgs::Odometry&);
     
     ros::Publisher pubReplan;
 };

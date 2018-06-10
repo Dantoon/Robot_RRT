@@ -97,9 +97,9 @@ tree::tree(ros::NodeHandle nh){
 	interpolationSteps = 10;
 	
 	pubCmd = nh.advertise<geometry_msgs::Twist>("/robot_0/cmd_vel",50,false);	
-	pubProjection = nh.advertise<geometry_msgs::Twist>("/cmds",500,true);	
+	pubProjection = nh.advertise<geometry_msgs::Twist>("/cmds",500,false);	
   pubMarker = nh.advertise<visualization_msgs::Marker>("treepoints",50,false);
-  pubCmdNum = nh.advertise<std_msgs::Int16>("/cmdNum",50,true);
+  pubCmdNum = nh.advertise<std_msgs::Int16>("/cmdNum",50,false);
   
   subMap = nh.subscribe("robot_0/robot_map/robot_map/costmap", 10, &tree::mapCallback, this);
   subPose = nh.subscribe("robot_0/odom", 10, &tree::currentPoseCallback, this);

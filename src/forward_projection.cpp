@@ -16,12 +16,11 @@ int main(int argc, char **argv){
     ros::spinOnce();
     
     
-    while(callback.cmdNumOk && callback.mapOk && callback.goalOk && callback.startOk && ros::ok()){
-      ros::spinOnce();
-      
+    while(callback.cmdOk && callback.mapOk && callback.goalOk && callback.startOk && ros::ok()){      
       if(callback.cmdCntr < callback.cmdNum.data - 1){
         printf("command counter = %i\n", callback.cmdCntr);
         callback.startPose = callback.projection(callback.startPose, callback.cmdArr[callback.cmdCntr]);
+        //TODO dyn. obstacle check -> obstacleCollision(callback.startPose, callback.cmdCntr, callback.cmdStart)
         callback.cmdCntr++;
         nodeMarker = markerPoint(callback.startPose, callback.cmdCntr+10);
         pubMarker.publish(nodeMarker);
@@ -30,8 +29,9 @@ int main(int argc, char **argv){
         printf("too far from goal. replanning...\n");
         callback.replan();
       }
-      else if(pointDistance(callback.startPose.position, callback.goal) < tolerance)
-        printf("Still on course\n");
+      //else if(pointDistance(callback.startPose.position, callback.goal) < tolerance)
+        //printf("Still on course\n");
+      ros::spinOnce();
     }
   }
   
@@ -58,6 +58,7 @@ callback::callback(ros::NodeHandle nh){
 	subCmd = nh.subscribe("/cmds", 500, &callback::cmdCallback, this);
 	subStartPose = nh.subscribe("/robot_0/cmd_vel", 10, &callback::startPoseCallback, this);
 	subReplan = nh.subscribe("/rrt_replan", 10, &callback::replanCallback, this);
+	subObstacle = nh.subscribe("/tracking", 10, &callback::obstacleCallback, this);
 	
 	pubReplan = nh.advertise<std_msgs::Bool>("/rrt_replan", 5, false);	
 }
@@ -93,8 +94,10 @@ void callback::cmdCallback(const geometry_msgs::Twist& msg){
     printf("Received cmd #%i\n", cmdCallbackCntr);
     cmdCallbackCntr++;
   }
-  if(cmdCallbackCntr == cmdNum.data)
+  if(cmdCallbackCntr == cmdNum.data){
     printf("All commands received.\n");
+    cmdOk = true;
+  }
 }
 
 void callback::startPoseCallback(const geometry_msgs::Twist& msg){
@@ -106,6 +109,7 @@ void callback::startPoseCallback(const geometry_msgs::Twist& msg){
 
 void callback::replanCallback(const std_msgs::Bool& msg){
   if(msg.data){
+    printf("received replan command\n");
     cmdNumOk = false;
     startOk = false;
   
@@ -113,6 +117,33 @@ void callback::replanCallback(const std_msgs::Bool& msg){
     cmdCntr = 0;
     cmdStart = -1;
     cmdNum.data = -1;
+  }
+}
+
+void callback::obstacleCallback(const nav_msgs::Odometry& msg){
+  int steps = cmdCntr-cmdStart;  
+  geometry_msgs::Pose obstaclePose = msg.pose.pose;
+  geometry_msgs::Pose tempPose;
+  
+  float v = msg.twist.twist.linear.x;
+  float w = msg.twist.twist.linear.z;
+  float alpha1 = tf::getYaw(startPose.orientation);
+  
+  if(w != 0){
+    tempPose.position.x = obstaclePose.position.x - v/w * sin(alpha1) + v/w * sin(alpha1 + w*steps);
+    tempPose.position.y = obstaclePose.position.y + v/w * cos(alpha1) - v/w * cos(alpha1 + w*steps);
+  }
+  else{
+    tempPose.position.x = obstaclePose.position.x + v * cos(alpha1) * steps;
+    tempPose.position.y = obstaclePose.position.y + v * sin(alpha1) * steps;
+  }
+  
+  float distance = pointDistance(tempPose.position, startPose.position);  
+  float obstacleTolerance = 1.0f;
+    
+  if(distance < obstacleTolerance){
+    printf("Dynamic Obstacle collision detected. Replanning...\n");
+    replan();
   }
 }
 
@@ -167,7 +198,7 @@ bool callback::collisionCheck(geometry_msgs::Point point){
   int celly = y/map.info.resolution;
 
   //check value at point
-  printf("cellx = %i    celly = %i\n", cellx, celly);
+  //printf("cellx = %i    celly = %i\n", cellx, celly);
   float value = map.data[cellx + celly*map.info.width];
   
   //printf("value: %f\n", value);
@@ -189,6 +220,13 @@ void callback::replan(){
   std_msgs::Bool replanNow;
   replanNow.data = true;
   pubReplan.publish(replanNow);
+  cmdNumOk = false;
+  startOk = false;
+ 
+  cmdCallbackCntr = 0;
+  cmdCntr = 0;
+  cmdStart = -1;
+  cmdNum.data = -1;
 }
 
 //---Visualization----
