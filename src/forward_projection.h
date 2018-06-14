@@ -33,6 +33,7 @@ class callback{
     geometry_msgs::Pose projection(geometry_msgs::Pose, geometry_msgs::Twist);
     void replan();
     
+	  ros::Publisher pubMarker;    
   private:
     ros::Subscriber subOdom;
     ros::Subscriber subMap;
@@ -60,7 +61,7 @@ geometry_msgs::Pose projection(geometry_msgs::Pose, geometry_msgs::Twist);
 
 float pointDistance(geometry_msgs::Point, geometry_msgs::Point);
 
-visualization_msgs::Marker markerPoint(geometry_msgs::Pose, int);
+visualization_msgs::Marker markerPoint(geometry_msgs::Pose, int, int);
 
 visualization_msgs::Marker clearMarker();
 

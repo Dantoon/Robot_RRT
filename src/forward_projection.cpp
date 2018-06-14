@@ -7,9 +7,7 @@ int main(int argc, char **argv){
   callback callback(nh);
   float tolerance = 2.0f;
   
-  ros::Publisher pubMarker;
-  pubMarker = nh.advertise<visualization_msgs::Marker>("treepoints",50,false);
-  pubMarker.publish(clearMarker());
+  callback.pubMarker.publish(clearMarker());
   visualization_msgs::Marker nodeMarker;
   
   while(ros::ok()){
@@ -22,12 +20,23 @@ int main(int argc, char **argv){
         callback.startPose = callback.projection(callback.startPose, callback.cmdArr[callback.cmdCntr]);
         //TODO dyn. obstacle check -> obstacleCollision(callback.startPose, callback.cmdCntr, callback.cmdStart)
         callback.cmdCntr++;
-        nodeMarker = markerPoint(callback.startPose, callback.cmdCntr+10);
-        pubMarker.publish(nodeMarker);
+        nodeMarker = markerPoint(callback.startPose, callback.cmdCntr,1);
+        callback.pubMarker.publish(nodeMarker);
       }
       else if(pointDistance(callback.startPose.position, callback.goal) > tolerance){
         printf("too far from goal. replanning...\n");
         callback.replan();
+      }
+      else if(callback.cmdStart == callback.cmdNum.data){
+        printf("goal reached. \n");
+        callback.cmdOk = false;
+        callback.mapOk = false;
+        callback.goalOk = false;
+        callback.startOk = false;
+        callback.cmdCallbackCntr = 0;
+        callback.cmdCntr = 0;
+        callback.cmdStart = -1;
+        callback.cmdNum.data = -1;
       }
       //else if(pointDistance(callback.startPose.position, callback.goal) < tolerance)
         //printf("Still on course\n");
@@ -60,7 +69,8 @@ callback::callback(ros::NodeHandle nh){
 	subReplan = nh.subscribe("/rrt_replan", 10, &callback::replanCallback, this);
 	subObstacle = nh.subscribe("/tracking", 10, &callback::obstacleCallback, this);
 	
-	pubReplan = nh.advertise<std_msgs::Bool>("/rrt_replan", 5, false);	
+	pubReplan = nh.advertise<std_msgs::Bool>("/rrt_replan", 5, false);
+  pubMarker = nh.advertise<visualization_msgs::Marker>("/treepoints",50,false);	
 }
 
 //-----Callbacks------
@@ -137,7 +147,8 @@ void callback::obstacleCallback(const nav_msgs::Odometry& msg){
     tempPose.position.x = obstaclePose.position.x + v * cos(alpha1) * steps;
     tempPose.position.y = obstaclePose.position.y + v * sin(alpha1) * steps;
   }
-  
+
+  pubMarker.publish(markerPoint(tempPose, cmdCntr, 2));  
   float distance = pointDistance(tempPose.position, startPose.position);  
   float obstacleTolerance = 1.0f;
     
@@ -233,16 +244,15 @@ void callback::replan(){
 //---Visualization----
 //--------------------
 
-visualization_msgs::Marker markerPoint(geometry_msgs::Pose pose, int type){
-  //type: 0-goal, 1-start, 2-generic, 3-mini
+visualization_msgs::Marker markerPoint(geometry_msgs::Pose pose, int id, int type){
   
 	visualization_msgs::Marker nodeMarker;
-	nodeMarker.type = visualization_msgs::Marker::SPHERE;
+	nodeMarker.id = visualization_msgs::Marker::SPHERE;
 	
 	nodeMarker.header.frame_id = "map";
-	nodeMarker.ns = "treepoint";
-	nodeMarker.id = type;
-	
+	nodeMarker.ns = "forward_projection";
+	nodeMarker.id = id;
+
 	nodeMarker.action = visualization_msgs::Marker::ADD;
 	
 	nodeMarker.color.g = 1.0f;
@@ -256,15 +266,19 @@ visualization_msgs::Marker markerPoint(geometry_msgs::Pose pose, int type){
 	nodeMarker.pose.position.z = 0.01f;
 	nodeMarker.pose.orientation.w = 1.0f;
 	
-	if(type==0){
+	if(id==0){
 		nodeMarker.color.r = 1.0f;
 		nodeMarker.color.b = 0.0f;
 	}
-	if(type==1){
+	if(id==1){
 		nodeMarker.color.g = 1.0f;
 		nodeMarker.color.b = 0.0f;
 	}
-
+	if(type == 2){
+	  nodeMarker.ns = "dynamic_obstacle";
+	  nodeMarker.color.g = 0.0f;
+	  nodeMarker.color.r = 1.0f;
+	}
 	return nodeMarker;	
 }
 
