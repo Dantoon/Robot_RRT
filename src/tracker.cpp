@@ -6,19 +6,18 @@ int main(int argc, char **argv){
   ros::NodeHandle nh;
   geometry_msgs::Point tempPoint;
   int tempID;
-  int samplingRate = 2;
+  int samplingRate = 10;
   ros::Rate spinRate(samplingRate);
   ros::Publisher pubObstaclePath;
   pubObstaclePath = nh.advertise<nav_msgs::Odometry>("/tracking", 50, false);
   
   callback callback(nh);
-  while(!callback.mapOk)
+  while(!callback.mapOk){
     ros::spinOnce();
-  
-  while(ros::ok()){
+  }
+  while(ros::ok() && callback.mapOk){
     ros::spinOnce();
     //while spinning, checks objects for tracking and adds their position to structs if necessary
-    
     trackedObject(callback.head, &pubObstaclePath, samplingRate);
     //calculates and publishes all positions and headings as odometry.
     if(callback.head->next->id == -1)
@@ -56,6 +55,7 @@ callback::callback(ros::NodeHandle nh){
   endObstacle.id = -1;
   head = &startObstacle;
   tempHead = head;
+  mapOk = false;
   
   subOdom = nh.subscribe("/robot_0/odom", 1, &callback::odomCallback,this);
   subObstacle1_Odom = nh.subscribe("/robot_1/odom", 1, &callback::obstacle1_OdomCallback, this);

@@ -18,6 +18,7 @@ class callback{
     std_msgs::Int16 cmdNum;
     geometry_msgs::Twist* cmdArr;
     geometry_msgs::Pose startPose;
+    geometry_msgs::Pose startPoseBackup;
     geometry_msgs::Point goal;
     
     bool mapOk;
@@ -33,7 +34,20 @@ class callback{
     geometry_msgs::Pose projection(geometry_msgs::Pose, geometry_msgs::Twist);
     void replan();
     
-	  ros::Publisher pubMarker;    
+	  ros::Publisher pubMarker;
+	  
+	  struct dynamicObstacle{
+	    int id;
+	    geometry_msgs::Twist cmd;
+	    geometry_msgs::Pose startPose;
+	    dynamicObstacle* next;
+	  };
+	  dynamicObstacle* headObstacle;
+	  dynamicObstacle* tempObstacle;
+	  int obstacleCounter;
+	  void deleteAllObstacles();
+	  bool obstacleProjection();
+	  
   private:
     ros::Subscriber subOdom;
     ros::Subscriber subMap;

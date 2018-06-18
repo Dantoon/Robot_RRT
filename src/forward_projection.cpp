@@ -10,24 +10,28 @@ int main(int argc, char **argv){
   callback.pubMarker.publish(clearMarker());
   visualization_msgs::Marker nodeMarker;
   
-  while(ros::ok()){
+  while(ros::ok())
+  {
     ros::spinOnce();
     
     
-    while(callback.cmdOk && callback.mapOk && callback.goalOk && callback.startOk && ros::ok()){      
-      if(callback.cmdCntr < callback.cmdNum.data - 1){
+    while(callback.cmdOk && callback.mapOk && callback.goalOk && callback.startOk && ros::ok())
+    {      
+      if(callback.cmdCntr < callback.cmdNum.data - 1)
+      {
         printf("command counter = %i\n", callback.cmdCntr);
         callback.startPose = callback.projection(callback.startPose, callback.cmdArr[callback.cmdCntr]);
-        //TODO dyn. obstacle check -> obstacleCollision(callback.startPose, callback.cmdCntr, callback.cmdStart)
         callback.cmdCntr++;
         nodeMarker = markerPoint(callback.startPose, callback.cmdCntr,1);
         callback.pubMarker.publish(nodeMarker);
       }
-      else if(pointDistance(callback.startPose.position, callback.goal) > tolerance){
+      else if(pointDistance(callback.startPose.position, callback.goal) > tolerance)
+      {
         printf("too far from goal. replanning...\n");
         callback.replan();
       }
-      else if(callback.cmdStart == callback.cmdNum.data){
+      else if(callback.cmdStart == callback.cmdNum.data)
+      {
         printf("goal reached. \n");
         callback.cmdOk = false;
         callback.mapOk = false;
@@ -37,9 +41,17 @@ int main(int argc, char **argv){
         callback.cmdCntr = 0;
         callback.cmdStart = -1;
         callback.cmdNum.data = -1;
+        callback.pubMarker.publish(clearMarker());
       }
-      //else if(pointDistance(callback.startPose.position, callback.goal) < tolerance)
-        //printf("Still on course\n");
+      else if(callback.cmdCntr == callback.cmdNum.data - 1)
+      {
+        callback.cmdCntr = callback.cmdStart;
+        callback.startPose = callback.startPoseBackup;
+      }
+      if(!callback.obstacleProjection()){
+        printf("collision with dynamic obstacle. replanning...\n");
+        callback.replan();
+      }
       ros::spinOnce();
     }
   }
@@ -59,6 +71,14 @@ callback::callback(ros::NodeHandle nh){
   cmdCntr = 0;
   cmdStart = -1;
   cmdNum.data = -1;
+  
+  obstacleCounter = 0;
+  tempObstacle = new dynamicObstacle;
+  headObstacle = tempObstacle;
+  headObstacle->id = 0;
+  tempObstacle = new dynamicObstacle;
+  tempObstacle->id = -1;
+  headObstacle->next = tempObstacle;
   
   subOdom = nh.subscribe("/robot_0/odom", 1, &callback::odomCallback, this);
 	subMap = nh.subscribe("/robot_0/robot_map/robot_map/costmap", 10, &callback::mapCallback, this);
@@ -112,9 +132,11 @@ void callback::cmdCallback(const geometry_msgs::Twist& msg){
 
 void callback::startPoseCallback(const geometry_msgs::Twist& msg){
   startPose = currentOdom.pose.pose;
+  startPoseBackup = startPose;
   cmdStart++;
   cmdCntr = cmdStart;
   startOk = true;
+  deleteAllObstacles();
 }
 
 void callback::replanCallback(const std_msgs::Bool& msg){
@@ -129,26 +151,25 @@ void callback::replanCallback(const std_msgs::Bool& msg){
     cmdNum.data = -1;
   }
 }
-
+/*
 void callback::obstacleCallback(const nav_msgs::Odometry& msg){
-  int steps = cmdCntr-cmdStart;  
-  geometry_msgs::Pose obstaclePose = msg.pose.pose;
+  int steps = cmdCntr-cmdStart;
   geometry_msgs::Pose tempPose;
-  
+  printf("steps = %i\n", steps);
   float v = msg.twist.twist.linear.x;
   float w = msg.twist.twist.linear.z;
-  float alpha1 = tf::getYaw(startPose.orientation);
+  float alpha1 = tf::getYaw(msg.pose.pose.orientation);
   
   if(w != 0){
-    tempPose.position.x = obstaclePose.position.x - v/w * sin(alpha1) + v/w * sin(alpha1 + w*steps);
-    tempPose.position.y = obstaclePose.position.y + v/w * cos(alpha1) - v/w * cos(alpha1 + w*steps);
+    tempPose.position.x = msg.pose.pose.position.x - v/w * sin(alpha1) + v/w * sin(alpha1 + w*steps);
+    tempPose.position.y = msg.pose.pose.position.y + v/w * cos(alpha1) - v/w * cos(alpha1 + w*steps);
   }
   else{
-    tempPose.position.x = obstaclePose.position.x + v * cos(alpha1) * steps;
-    tempPose.position.y = obstaclePose.position.y + v * sin(alpha1) * steps;
+    tempPose.position.x = msg.pose.pose.position.x + v * cos(alpha1) * steps;
+    tempPose.position.y = msg.pose.pose.position.y + v * sin(alpha1) * steps;
   }
 
-  pubMarker.publish(markerPoint(tempPose, cmdCntr, 2));  
+  pubMarker.publish(markerPoint(tempPose, steps+2, 2));  
   float distance = pointDistance(tempPose.position, startPose.position);  
   float obstacleTolerance = 1.0f;
     
@@ -156,6 +177,17 @@ void callback::obstacleCallback(const nav_msgs::Odometry& msg){
     printf("Dynamic Obstacle collision detected. Replanning...\n");
     replan();
   }
+}*/
+
+void callback::obstacleCallback(const nav_msgs::Odometry& msg){
+  obstacleCounter++;
+  tempObstacle = new dynamicObstacle;
+  tempObstacle->id = obstacleCounter;
+  tempObstacle->cmd = msg.twist.twist;
+  tempObstacle->startPose = msg.pose.pose;
+  
+  tempObstacle->next = headObstacle->next;
+  headObstacle->next = tempObstacle;
 }
 
 //-----Functions------
@@ -223,6 +255,50 @@ bool callback::collisionCheck(geometry_msgs::Point point){
 
 float pointDistance(geometry_msgs::Point p1, geometry_msgs::Point p2){
   return sqrt( pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2));
+}
+
+bool callback::obstacleProjection(){
+  float minDistance = 2.0f;
+  geometry_msgs::Pose tempPose;
+  tempObstacle = headObstacle->next;
+  while(true){
+    if(tempObstacle->id != 0 && tempObstacle->id != -1){
+      int steps = cmdCntr - cmdStart;
+      float v = tempObstacle->cmd.linear.x;
+      float w = tempObstacle->cmd.angular.z;
+      float alpha1 = tf::getYaw(tempObstacle->startPose.orientation);
+      
+      if(abs(w) > 0.05){
+        tempPose.position.x = tempObstacle->startPose.position.x - v/w * sin(alpha1) + v/w * sin(alpha1 + w*steps);
+        tempPose.position.y = tempObstacle->startPose.position.y + v/w * cos(alpha1) - v/w * cos(alpha1 + w*steps);
+      }
+      else{
+        tempPose.position.x = tempObstacle->startPose.position.x + steps * v * cos(alpha1);
+        tempPose.position.y = tempObstacle->startPose.position.y + steps * v * sin(alpha1);
+      }
+      pubMarker.publish(markerPoint(tempPose, steps+2, 2));
+      
+      if(pointDistance(tempPose.position, startPose.position) < minDistance){
+        return false;  
+      }
+    }
+    else
+      break;
+  }
+  return true;
+}
+
+void callback::deleteAllObstacles(){
+  tempObstacle = headObstacle->next;
+  while(true){
+    if(tempObstacle->id != 0 && tempObstacle->id != -1){
+      headObstacle->next = tempObstacle->next;
+      free(tempObstacle);
+      tempObstacle = headObstacle->next;
+    }
+    else
+      break;
+  }
 }
 
 //-----Publisher------

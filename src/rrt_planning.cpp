@@ -18,14 +18,16 @@ int main(int argc, char **argv){
 		
 		if(rrt.initialPoseFound && rrt.goalFound && rrt.mapFound){
 		  printf("starting rrt...\n");
+		  ros::Time rrtBegin = ros::Time::now();
 		  
 			while(rrt.pointsInTree < rrt.maxPoints-1 && ros::ok()){
 				rrt.generatePoint();
 				//r.sleep();
-				//usleep(5000);
+			  //usleep(5000); //markerDelay
 				
 				if(rrt.pathFound){
-					printf("path found\n");
+				  float secs = ros::Time::now().toSec() - rrtBegin.toSec();
+					printf("path found. time = %fs\n", secs);
 					break;
 				}
 			}
@@ -102,6 +104,9 @@ void tree::replanCallback(const std_msgs::Bool& msg){
     pointsInTree = 2;
 	  initialPoseFound = false;
 	  pathFound = false;
+	  markerLine(treePoints[0].pose, 1);
+	  clearMarker();
+    markerPoint(treePoints[0].pose, 0);
   }
 }
 
@@ -182,7 +187,7 @@ void tree::generatePoint(){
 		    pathFound = true;
 		    treePoints[0].parentId = pointsInTree;
 		    printf("%i\n", treePoints[0].parentId);
-		    //createPath();
+		    createPath(); //markerPath
 		  }
 			pointsInTree++;
 		}
@@ -351,7 +356,7 @@ void tree::pathCmd(){
   
   //send commands in specified rate to robot
   ros::Time cycleStart;
-	while(pathCmd.id != 0){
+	while(pathCmd.id != 0 && ros::ok()){
 			
 		while(pathCmd.parentId != tempId){
 			pathCmd = treePoints[pathCmd.parentId];
