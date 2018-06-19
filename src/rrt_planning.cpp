@@ -187,7 +187,7 @@ void tree::generatePoint(){
 		    pathFound = true;
 		    treePoints[0].parentId = pointsInTree;
 		    printf("%i\n", treePoints[0].parentId);
-		    createPath(); //markerPath
+		    //createPath(); //markerPath
 		  }
 			pointsInTree++;
 		}
@@ -203,7 +203,7 @@ int tree::generateCommand(geometry_msgs::Point goal, int startId){
 	float tempDistance = 0.0f;
 	int success = -1;
 	
-	int samplingNumber = 10;
+	int samplingNumber = 5;
 	float speed = 1.0f;
 	float angMax = 1.0f;
 	
