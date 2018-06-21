@@ -6,7 +6,7 @@ int main(int argc, char **argv){
   ros::NodeHandle nh;
   geometry_msgs::Point tempPoint;
   int tempID;
-  int samplingRate = 10;
+  int samplingRate = 5;
   ros::Rate spinRate(samplingRate);
   ros::Publisher pubObstaclePath;
   pubObstaclePath = nh.advertise<nav_msgs::Odometry>("/tracking", 50, false);
@@ -119,7 +119,7 @@ void obstacle::addNewPoint(geometry_msgs::Point p){
     lastPoints[1] = lastPoints[2];
     lastPoints[2] = p;
   }
-  printf("pointNum = %i\n", pointNum);
+  //printf("pointNum = %i\n", pointNum);
 }
 
 //-----Functions------
@@ -127,10 +127,11 @@ void obstacle::addNewPoint(geometry_msgs::Point p){
 
 bool trackedObject(obstacle* ptr, ros::Publisher* pubPtr, int samplingRate){
   while(ptr->id != -1){
-    printf("id: %i\n", ptr->id);
+    //printf("id: %i\n", ptr->id);
     if(ptr->pointNum == 3){
-      printf("Object #%i full. publishing odom...\n", ptr->id);
+      //printf("Object #%i full. publishing odom...\n", ptr->id);
       ptr->calculatedOdom = odomCalc(ptr->lastPoints[0], ptr->lastPoints[1], ptr->lastPoints[2], samplingRate);
+      ptr->calculatedOdom.twist.twist.linear.z = ptr->id;     //dumb workaround to tell the id to the receiving Node. TODO find more elegant solution. use srv? -> call and response
       pubPtr->publish(ptr->calculatedOdom);
     }
     ptr = ptr->next;
@@ -150,9 +151,9 @@ void trackingUpdate(int id, bool inView, geometry_msgs::Point p, obstacle** head
   if(inView){
     printf("obstacle in view\n");
     while(true){
-      printf("searching id #%i...\n", ptr->id);
+      //printf("searching id #%i...\n", ptr->id);
       if(ptr->id == id){
-        printf("adding to new object #%i...\n", ptr->id);
+        //printf("adding to new object #%i...\n", ptr->id);
         ptr->addNewPoint(p);
         objExist = true;
         break;
@@ -163,7 +164,7 @@ void trackingUpdate(int id, bool inView, geometry_msgs::Point p, obstacle** head
     }
     
     if(!objExist){
-      printf("creating new object...\n");
+      //printf("creating new object...\n");
       *tempHead = new obstacle;
       (*tempHead)->next = (*head)->next;
       (*head)->next = *tempHead;
@@ -185,7 +186,7 @@ void trackingUpdate(int id, bool inView, geometry_msgs::Point p, obstacle** head
         //else{
         obstacle* delObj = oldPtr->next;
         oldPtr->next = delObj->next;
-        printf("deleting object id=%i\n", delObj->id);
+        //printf("deleting object id=%i\n", delObj->id);
         free(delObj);
           //better solution for later may be extrapolating position in this sampling step, until object comes back into view
        // }
@@ -223,11 +224,17 @@ nav_msgs::Odometry odomCalc(geometry_msgs::Point p1, geometry_msgs::Point p2, ge
   
   alpha1 = atan2(dy1, dx1);
   alpha2 = atan2(dy2, dx2);
-  if(abs(alpha1-alpha2) < 0.05)
+  
+  if(alpha1 < 0.0)
+    alpha1 = 2*pi + alpha1;
+  if(alpha2 < 0.0)
+    alpha2 = 2*pi + alpha2;
+    
+  if(fabs(alpha1-alpha2) == 0.0)
     colinear = true;
   
   if(colinear){
-    odom.twist.twist.linear.x = pointDistance(p3,p1)*(double)(samplingRate)/2;
+    odom.twist.twist.linear.x = pointDistance(p3,p1)*(double)(samplingRate)/2.0;
     odom.twist.twist.angular.z = 0;
     tf::Quaternion q = tf::createQuaternionFromRPY(0,0,alpha2);
     q.normalize();
@@ -240,17 +247,31 @@ nav_msgs::Odometry odomCalc(geometry_msgs::Point p1, geometry_msgs::Point p2, ge
     2. calc angular velocity of robot
     3, calc speed of robot
     */
-    float beta = 0.5*(pi+alpha1-alpha2);
+    
+    float dalpha = alpha1 - alpha2;
+    float beta = 0.5*(pi+dalpha);
+    float theta = (pi-2*beta);
+    float w = theta*samplingRate;
+    if(fabs(w) > 10){
+      if(dalpha < 0)
+        dalpha = dalpha + 2*pi;
+      else
+        dalpha = dalpha - 2*pi;
+      beta = 0.5*(pi+dalpha);
+      theta = (pi-2*beta);
+      w = theta*samplingRate;
+    }
+    
     float d_avg = 0.5*(d1+d2);
     float r = d_avg/(2*cos(beta));
-    float theta = 2*(pi-2*beta);
     float alphaEnd = alpha2-(pi/2.0-beta)+theta/2.0;
     
-    odom.twist.twist.angular.z = theta*samplingRate;
+    odom.twist.twist.angular.z = w;
     odom.twist.twist.linear.x = r*odom.twist.twist.angular.z;
     tf::Quaternion q = tf::createQuaternionFromRPY(0,0,alphaEnd);
     q.normalize();
     tf::quaternionTFToMsg(q, odom.pose.pose.orientation);
+    printf("Yaw = %f\n", tf::getYaw(odom.pose.pose.orientation));
   }
   
   return odom;

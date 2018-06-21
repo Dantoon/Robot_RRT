@@ -212,6 +212,15 @@ include_directories(
 #target_link_libraries(command_sampling ${catkin_LIBRARIES})
 #add_dependencies(command_sampling ${catkin_EXPORTED_TARGETS})
 
+add_executable(foo src/foo.cpp)
+target_link_libraries(foo ${catkin_LIBRARIES})
+add_dependencies(foo ${catkin_EXPORTED_TARGETS})
+
+add_executable(cmd_hold src/cmd_hold.cpp)
+target_link_libraries(cmd_hold ${catkin_LIBRARIES})
+add_dependencies(cmd_hold ${catkin_EXPORTED_TARGETS})
+
+
 add_executable(rrt_planning src/rrt_planning.cpp)
 target_link_libraries(rrt_planning ${catkin_LIBRARIES})
 add_dependencies(rrt_planning ${catkin_EXPORTED_TARGETS})

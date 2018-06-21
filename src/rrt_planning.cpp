@@ -26,7 +26,7 @@ int main(int argc, char **argv){
 			  //usleep(5000); //markerDelay
 				
 				if(rrt.pathFound){
-				  float secs = ros::Time::now().toSec() - rrtBegin.toSec();
+				  double secs = (ros::Time::now().toNSec() - rrtBegin.toNSec())*1e-9;
 					printf("path found. time = %fs\n", secs);
 					break;
 				}
@@ -154,8 +154,8 @@ void tree::generatePoint(){
 		//sampling Point and looking if it's close enough
 		while(!closeEnough){
 		  sampledPoint = origin;
-			sampledPoint.x += (rand() % (int)(2*distanceX*1000)) / 1000.0 * invX - distanceX / 2;
-			sampledPoint.y += (rand() % (int)(2*distanceY*1000)) / 1000.0 * invY - distanceY / 2;
+			sampledPoint.x += (rand() % (int)(4*distanceX*1000)) / 1000.0 * invX - distanceX / 4;
+			sampledPoint.y += (rand() % (int)(4*distanceY*1000)) / 1000.0 * invY - distanceY / 4;
 			
 		
 			for(int n = 1; n<pointsInTree; n++){
@@ -368,7 +368,7 @@ void tree::pathCmd(){
 		pubCmd.publish(treePoints[tempId].cmd);
 		
 		cycleStart = ros::Time::now();
-		while(ros::Time::now().toSec() - cycleStart.toSec() < 0.9){
+		while(ros::Time::now().toSec() - cycleStart.toSec() < 0.9){       //Spin to check for replan commands
 		  ros::spinOnce();
 		  if(!pathFound){
 		  	pubCmd.publish(treePoints[0].cmd);

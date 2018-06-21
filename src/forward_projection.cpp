@@ -19,7 +19,7 @@ int main(int argc, char **argv){
     {      
       if(callback.cmdCntr < callback.cmdNum.data - 1)
       {
-        printf("command counter = %i\n", callback.cmdCntr);
+        //printf("command counter = %i\n", callback.cmdCntr);
         callback.startPose = callback.projection(callback.startPose, callback.cmdArr[callback.cmdCntr]);
         callback.cmdCntr++;
         nodeMarker = markerPoint(callback.startPose, callback.cmdCntr,1);
@@ -30,9 +30,16 @@ int main(int argc, char **argv){
         printf("too far from goal. replanning...\n");
         callback.replan();
       }
-      else if(callback.cmdStart == callback.cmdNum.data)
+      else if(callback.cmdCntr == callback.cmdNum.data - 1)
+      {
+        //printf("restarting\n");
+        callback.cmdCntr = callback.cmdStart;
+        callback.startPose = callback.startPoseBackup;
+      }
+      if(callback.cmdStart == callback.cmdNum.data)
       {
         printf("goal reached. \n");
+        callback.deleteAllObstacles();
         callback.cmdOk = false;
         callback.mapOk = false;
         callback.goalOk = false;
@@ -42,11 +49,6 @@ int main(int argc, char **argv){
         callback.cmdStart = -1;
         callback.cmdNum.data = -1;
         callback.pubMarker.publish(clearMarker());
-      }
-      else if(callback.cmdCntr == callback.cmdNum.data - 1)
-      {
-        callback.cmdCntr = callback.cmdStart;
-        callback.startPose = callback.startPoseBackup;
       }
       if(!callback.obstacleProjection()){
         printf("collision with dynamic obstacle. replanning...\n");
@@ -85,7 +87,8 @@ callback::callback(ros::NodeHandle nh){
 	subGoal = nh.subscribe("/map_goal", 10, &callback::goalCallback, this);
   subCmdNum = nh.subscribe("/cmdNum", 10, &callback::cmdNumCallback, this);
 	subCmd = nh.subscribe("/cmds", 500, &callback::cmdCallback, this);
-	subStartPose = nh.subscribe("/robot_0/cmd_vel", 10, &callback::startPoseCallback, this);
+	//subStartPose = nh.subscribe("/robot_0/cmd_vel", 10, &callback::startPoseCallback, this);
+	subStartPose = nh.subscribe("/rrt_cmd", 10, &callback::startPoseCallback, this);
 	subReplan = nh.subscribe("/rrt_replan", 10, &callback::replanCallback, this);
 	subObstacle = nh.subscribe("/tracking", 10, &callback::obstacleCallback, this);
 	
@@ -134,9 +137,9 @@ void callback::startPoseCallback(const geometry_msgs::Twist& msg){
   startPose = currentOdom.pose.pose;
   startPoseBackup = startPose;
   cmdStart++;
+  printf("cmdStart = %i\n", cmdStart);
   cmdCntr = cmdStart;
   startOk = true;
-  deleteAllObstacles();
 }
 
 void callback::replanCallback(const std_msgs::Bool& msg){
@@ -180,14 +183,37 @@ void callback::obstacleCallback(const nav_msgs::Odometry& msg){
 }*/
 
 void callback::obstacleCallback(const nav_msgs::Odometry& msg){
-  obstacleCounter++;
-  tempObstacle = new dynamicObstacle;
-  tempObstacle->id = obstacleCounter;
-  tempObstacle->cmd = msg.twist.twist;
-  tempObstacle->startPose = msg.pose.pose;
+  printf("RECEIVING OBSTACLE INFO\n");
+  int id = (int)(msg.twist.twist.linear.z);      //dumb workaround to tell the id to the receiving Node. TODO find more elegant solution. use srv? -> call and response
+  bool exist = false;
+  tempObstacle = headObstacle->next;
   
-  tempObstacle->next = headObstacle->next;
-  headObstacle->next = tempObstacle;
+  while(true){
+    if(tempObstacle->id == -1)
+      break;
+    if(tempObstacle->id == id){
+      exist = true;
+      break;
+    }
+  }
+  
+  if(exist){
+    printf("begin tracking obstacle #%i\n", id);
+    tempObstacle->cmd = msg.twist.twist;
+    tempObstacle->startPose = msg.pose.pose;
+  }
+  
+  else{
+    printf("updating obstacle #%i\n", id);
+    obstacleCounter++;
+    tempObstacle = new dynamicObstacle;
+    tempObstacle->id = id;
+    tempObstacle->cmd = msg.twist.twist;
+    tempObstacle->startPose = msg.pose.pose;
+  
+    tempObstacle->next = headObstacle->next;
+    headObstacle->next = tempObstacle;
+  }
 }
 
 //-----Functions------
@@ -201,7 +227,6 @@ geometry_msgs::Pose callback::projection(geometry_msgs::Pose startPose, geometry
   float alpha1 = tf::getYaw(startPose.orientation);
   float Ts = 0.1f;
   collisionCheck(endPose.position);
-  
   for(int n = 1; n<=10; n++){
     if(w != 0){
       endPose.position.x = startPose.position.x - v/w * sin(alpha1) + v/w * sin(alpha1 + w*Ts*n);
@@ -263,6 +288,7 @@ bool callback::obstacleProjection(){
   tempObstacle = headObstacle->next;
   while(true){
     if(tempObstacle->id != 0 && tempObstacle->id != -1){
+      printf("obstacle projection id = %i\n", tempObstacle->id);
       int steps = cmdCntr - cmdStart;
       float v = tempObstacle->cmd.linear.x;
       float w = tempObstacle->cmd.angular.z;
@@ -281,6 +307,7 @@ bool callback::obstacleProjection(){
       if(pointDistance(tempPose.position, startPose.position) < minDistance){
         return false;  
       }
+      tempObstacle = tempObstacle->next;
     }
     else
       break;
@@ -292,6 +319,7 @@ void callback::deleteAllObstacles(){
   tempObstacle = headObstacle->next;
   while(true){
     if(tempObstacle->id != 0 && tempObstacle->id != -1){
+      printf("deleting obstacle #%i\n", tempObstacle->id);
       headObstacle->next = tempObstacle->next;
       free(tempObstacle);
       tempObstacle = headObstacle->next;

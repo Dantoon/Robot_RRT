@@ -96,7 +96,8 @@ tree::tree(ros::NodeHandle nh){
 	maxPointDistance = 1.0f;
 	interpolationSteps = 10;
 	
-	pubCmd = nh.advertise<geometry_msgs::Twist>("/robot_0/cmd_vel",50,false);	
+	//pubCmd = nh.advertise<geometry_msgs::Twist>("/robot_0/cmd_vel",50,false);	
+	pubCmd = nh.advertise<geometry_msgs::Twist>("/rrt_cmd",50,false);	
 	pubProjection = nh.advertise<geometry_msgs::Twist>("/cmds",500,false);	
   pubMarker = nh.advertise<visualization_msgs::Marker>("treepoints",50,false);
   pubCmdNum = nh.advertise<std_msgs::Int16>("/cmdNum",50,false);
