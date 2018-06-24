@@ -36,14 +36,17 @@ int main(int argc, char **argv){
         callback.cmdCntr = callback.cmdStart;
         callback.startPose = callback.startPoseBackup;
       }
-      if(callback.cmdStart == callback.cmdNum.data)
+      if(callback.cmdStart == callback.cmdNum.data && pointDistance(callback.currentOdom.pose.pose.position, callback.goal) < 1.0)
       {
         printf("goal reached. \n");
         callback.deleteAllObstacles();
+        
         callback.cmdOk = false;
+        callback.cmdNumOk = false;
         callback.mapOk = false;
         callback.goalOk = false;
         callback.startOk = false;
+        
         callback.cmdCallbackCntr = 0;
         callback.cmdCntr = 0;
         callback.cmdStart = -1;
@@ -64,6 +67,8 @@ int main(int argc, char **argv){
 //----Constructors----
 //--------------------
 callback::callback(ros::NodeHandle nh){
+  printf("constructing callback class...\n");
+  cmdOk = false;
   cmdNumOk = false;
   mapOk = false;
   goalOk = false;
@@ -89,7 +94,7 @@ callback::callback(ros::NodeHandle nh){
 	subCmd = nh.subscribe("/cmds", 500, &callback::cmdCallback, this);
 	//subStartPose = nh.subscribe("/robot_0/cmd_vel", 10, &callback::startPoseCallback, this);
 	subStartPose = nh.subscribe("/rrt_cmd", 10, &callback::startPoseCallback, this);
-	subReplan = nh.subscribe("/rrt_replan", 10, &callback::replanCallback, this);
+	subReplan = nh.subscribe("/rrt_replan", 1, &callback::replanCallback, this);
 	subObstacle = nh.subscribe("/tracking", 10, &callback::obstacleCallback, this);
 	
 	pubReplan = nh.advertise<std_msgs::Bool>("/rrt_replan", 5, false);
@@ -134,17 +139,20 @@ void callback::cmdCallback(const geometry_msgs::Twist& msg){
 }
 
 void callback::startPoseCallback(const geometry_msgs::Twist& msg){
-  startPose = currentOdom.pose.pose;
-  startPoseBackup = startPose;
-  cmdStart++;
-  printf("cmdStart = %i\n", cmdStart);
-  cmdCntr = cmdStart;
-  startOk = true;
+  if(cmdOk){
+    startPose = currentOdom.pose.pose;
+    startPoseBackup = startPose;
+    cmdStart++;
+    printf("cmdStart = %i\n", cmdStart);
+    cmdCntr = cmdStart;
+    startOk = true;
+  }
 }
 
 void callback::replanCallback(const std_msgs::Bool& msg){
   if(msg.data){
     printf("received replan command\n");
+    cmdOk = false;
     cmdNumOk = false;
     startOk = false;
   
@@ -198,13 +206,13 @@ void callback::obstacleCallback(const nav_msgs::Odometry& msg){
   }
   
   if(exist){
-    printf("begin tracking obstacle #%i\n", id);
+    printf("updating obstacle #%i\n", id);
     tempObstacle->cmd = msg.twist.twist;
     tempObstacle->startPose = msg.pose.pose;
   }
   
   else{
-    printf("updating obstacle #%i\n", id);
+    printf("begin tracking obstacle #%i\n", id);
     obstacleCounter++;
     tempObstacle = new dynamicObstacle;
     tempObstacle->id = id;
@@ -240,7 +248,6 @@ geometry_msgs::Pose callback::projection(geometry_msgs::Pose startPose, geometry
     if(collisionCheck(endPose.position)){
       //publish to replan
       printf("path blocked. replanning...\n");
-      replan();
     }
   }
   

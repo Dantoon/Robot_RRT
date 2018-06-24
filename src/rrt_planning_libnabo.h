@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+#include "nabo/nabo.h"
 
 //msgs
 #include "geometry_msgs/Point.h"
@@ -23,15 +24,13 @@ class tree{
 		bool goalFound;
 		bool pathFound;
 		
-		geometry_msgs::Point goal;
-		
 		void generatePoint();
-		int generateCommand(geometry_msgs::Point goal, int startId);
-		int cmdIntegration(float speed, geometry_msgs::Pose start, geometry_msgs::Twist cmd, geometry_msgs::Pose* end, float* cost);
-		bool collisionCheck(geometry_msgs::Point point);
-		float distance(geometry_msgs::Point point1, geometry_msgs::Point point2);
-		geometry_msgs::Point cellToCoord(int cell);
-		int coordToCell(geometry_msgs::Point coord);
+		int generateCommand(Eigen::VectorXf, int startId);
+		int cmdIntegration(geometry_msgs::Twist, geometry_msgs::Quaternion*, Eigen::Vector2f*, float*);
+		bool collisionCheck(Eigen::Vector2f);
+		float vectorDistance(Eigen::Vector2f, Eigen::Vector2f);
+		Eigen::Vector2f cellToCoord(int cell);
+		int coordToCell(Eigen::Vector2f);
 		void pathCmd();
     
     //replanning
@@ -42,26 +41,30 @@ class tree{
     //void dynCollisionCheck();
     
     //visualization
-    void markerPoint(geometry_msgs::Pose pose, int type);
+    void markerPoint(Eigen::Vector2f, int type);
     void clearMarker();
     void createPath();
-    void markerLine(geometry_msgs::Pose pose, int type);
+    void markerStrip(Eigen::Vector2f, int type);
     void markerList(int markerNum);
     visualization_msgs::Marker treeMarker;
+    
+    //libnabo stuff
+    Eigen::MatrixXf treePositions;
+    Eigen::Vector2f goal;
     	
 	private:
-	  struct treePose{
+	  struct treeCmd{
     	int id;
-    	geometry_msgs::Pose pose;
+    	int parentId;
     	geometry_msgs::Twist cmd;
+    	geometry_msgs::Quaternion orientation;
     	float cost;
     	
-    	int parentId;
-    	treePose();
+    	treeCmd();
     };
 		
 		nav_msgs::OccupancyGrid map;
-		treePose* treePoints;
+		treeCmd* treeCmds;
 		float maxPointDistance;
 		int interpolationSteps;
 		
@@ -76,7 +79,7 @@ class tree{
 		ros::Publisher pubCmdNum;
 		
 		void mapCallback(const nav_msgs::OccupancyGrid&);
-		void currentPoseCallback(const nav_msgs::Odometry&);
+		void initialPoseCallback(const nav_msgs::Odometry&);
 		void goalCallback(const geometry_msgs::Point&);
 		void replanCallback(const std_msgs::Bool&);
 };
@@ -92,7 +95,7 @@ tree::tree(ros::NodeHandle nh){
 	pathFound = false;
 	
 	maxPoints = 10000;
-	treePoints = new treePose[maxPoints];
+	treeCmds = new treeCmd[maxPoints];
 	//temporary. testing what happens when no limit on sampling distance TODO
 	maxPointDistance = 1.0f;
 	interpolationSteps = 10;
@@ -104,12 +107,15 @@ tree::tree(ros::NodeHandle nh){
   pubCmdNum = nh.advertise<std_msgs::Int16>("/cmdNum",50,false);
   
   subMap = nh.subscribe("robot_0/robot_map/robot_map/costmap", 10, &tree::mapCallback, this);
-  subPose = nh.subscribe("robot_0/odom", 10, &tree::currentPoseCallback, this);
+  subPose = nh.subscribe("robot_0/odom", 10, &tree::initialPoseCallback, this);
   subGoal = nh.subscribe("map_goal", 10, &tree::goalCallback, this);
   subReplan = nh.subscribe("/rrt_replan", 10, &tree::replanCallback, this);
+  
+  //libnabo stuff
+  treePositions.resize(2, maxPoints);
 }
 
-tree::treePose::treePose(){
+tree::treeCmd::treeCmd(){
 	cmd.linear.x = 0.0f;
 	cmd.linear.y = 0.0f;
 	cmd.linear.z = 0.0f;
@@ -129,14 +135,14 @@ returns distance of two points in xy-plane
 
 //-----Visualization------
 //------------------------
-void tree::markerPoint(geometry_msgs::Pose pose, int type){
+void tree::markerPoint(Eigen::Vector2f position, int type){
   //type: 0-goal, 1-start, 2-generic, 3-mini
   
 	visualization_msgs::Marker nodeMarker;
 	nodeMarker.type = visualization_msgs::Marker::SPHERE;
 	
 	nodeMarker.header.frame_id = "map";
-	nodeMarker.ns = "treepoint";
+	nodeMarker.ns = "treePoint";
 	nodeMarker.id = type;
 	
 	nodeMarker.action = visualization_msgs::Marker::ADD;
@@ -148,7 +154,8 @@ void tree::markerPoint(geometry_msgs::Pose pose, int type){
 	nodeMarker.scale.y = 0.2f;
 	nodeMarker.scale.z = 0.01f;
 	
-	nodeMarker.pose = pose;
+	nodeMarker.pose.position.x = position(0);
+	nodeMarker.pose.position.y = position(1);
 	nodeMarker.pose.position.z = 0.01f;
 	nodeMarker.pose.orientation.w = 1.0f;
 	
@@ -172,32 +179,27 @@ void tree::clearMarker(){
 
 }
 
-void tree::createPath(){
-  printf("creating Path...\n");
-  treePose marker = treePoints[0];
-  ros::Rate markerRate(100);
-  
-  while(true){
-    printf("connecting point #%i to #%i\n", marker.id, marker.parentId);
-    markerLine(marker.pose, 1);
-    
-    if(marker.id == 1){
-      printf("test1\n");
-      break;
-    }
-    printf("test2\n");      
-    marker = treePoints[marker.parentId];
-    //markerRate.sleep();
-	}
+void tree::createPath()
+{
+  int tempId = 0;
+  treeCmd tempCmd = treeCmds[pointsInTree];
+  markerStrip(treePositions.col(0), 1);
+  while(tempId != pointsInTree)
+  {
+    while(tempCmd.parentId != tempId)
+      tempCmd = treeCmds[tempCmd.parentId];
+    tempId = tempCmd.id;
+    markerStrip(treePositions.col(tempId), 1);
+  }
 }
 
-void tree::markerLine(geometry_msgs::Pose pose, int type){
+void tree::markerStrip(Eigen::Vector2f position, int type){
   //type: 0-final path, 1-generic 
 	treeMarker.type = visualization_msgs::Marker::LINE_STRIP;
 	treeMarker.action = visualization_msgs::Marker::ADD;
 
 	treeMarker.header.frame_id = "map";
-	treeMarker.ns = "treeLine";
+	treeMarker.ns = "treeStrip";
 	treeMarker.id = 1;
 
 	treeMarker.color.r = 1.0f;
@@ -205,9 +207,12 @@ void tree::markerLine(geometry_msgs::Pose pose, int type){
 
 	treeMarker.scale.x = 0.05f;
 	treeMarker.pose.orientation.w = 1.0f;
-  pose.position.z = 0.1f;
-
-	treeMarker.points.push_back(pose.position);
+  
+  geometry_msgs::Point p;
+  p.x = position(0);
+  p.y = position(1);
+  p.z = 0.1f;
+	treeMarker.points.push_back(p);
 
 	pubMarker.publish(treeMarker);
 }
@@ -227,9 +232,17 @@ void tree::markerList(int markerNum){
 
 	listMarker.scale.x = 0.05f;
 	listMarker.pose.orientation.w = 1.0f;
+	
+	geometry_msgs::Point p1, p2;
+	p1.x = treePositions(0, markerNum);
+	p1.y = treePositions(1, markerNum);
+	p1.z = 0;
+	p2.x = treePositions(0, treeCmds[markerNum].parentId);
+	p2.y = treePositions(1, treeCmds[markerNum].parentId);
+	p2.z = 0;
 
-	listMarker.points.push_back(treePoints[markerNum].pose.position);
-	listMarker.points.push_back(treePoints[treePoints[markerNum].parentId].pose.position);
+	listMarker.points.push_back(p1);
+	listMarker.points.push_back(p2);
 
 	pubMarker.publish(listMarker);
 }

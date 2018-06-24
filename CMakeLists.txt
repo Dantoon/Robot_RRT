@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(robot_pedestrian_rrt)
+project(robot_rrt)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -225,9 +225,9 @@ add_executable(rrt_planning src/rrt_planning.cpp)
 target_link_libraries(rrt_planning ${catkin_LIBRARIES})
 add_dependencies(rrt_planning ${catkin_EXPORTED_TARGETS})
 
-add_executable(controller src/controller.cpp)
-target_link_libraries(controller ${catkin_LIBRARIES})
-add_dependencies(controller ${catkin_EXPORTED_TARGETS})
+#add_executable(controller src/controller.cpp)
+#target_link_libraries(controller ${catkin_LIBRARIES})
+#add_dependencies(controller ${catkin_EXPORTED_TARGETS})
 
 add_executable(forward_projection src/forward_projection.cpp)
 target_link_libraries(forward_projection ${catkin_LIBRARIES})
@@ -236,3 +236,7 @@ add_dependencies(forward_projection ${catkin_EXPORTED_TARGETS})
 add_executable(tracker src/tracker.cpp)
 target_link_libraries(tracker ${catkin_LIBRARIES})
 add_dependencies(tracker ${catkin_EXPORTED_TARGETS})
+
+add_executable(rrt_planning_libnabo src/rrt_planning_libnabo.cpp)
+target_link_libraries(rrt_planning_libnabo ${catkin_LIBRARIES})
+add_dependencies(rrt_planning_libnabo ${catkin_EXPORTED_TARGETS})

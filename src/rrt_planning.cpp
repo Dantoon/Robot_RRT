@@ -146,17 +146,19 @@ void tree::generatePoint(){
 	if(distanceY < 0)
 	  invY = -1;
 	
-	
-	
 	while(!connectionSuccess){
 		closeEnough = false;
 		
 		//sampling Point and looking if it's close enough
 		while(!closeEnough){
 		  sampledPoint = origin;
+		  /*
 			sampledPoint.x += (rand() % (int)(4*distanceX*1000)) / 1000.0 * invX - distanceX / 4;
 			sampledPoint.y += (rand() % (int)(4*distanceY*1000)) / 1000.0 * invY - distanceY / 4;
-			
+			*/
+			//TODO test with sampling area restricted to more or less only the corridor
+			sampledPoint.x = (rand() % (int)(10.0*1000.0)) / 1000.0 - 10.0 / 2.0;
+			sampledPoint.y = (rand() % (int)(60.0*1000.0)) / 1000.0 - 60.0 / 2.0;
 		
 			for(int n = 1; n<pointsInTree; n++){
 				tempDistance = distance(treePoints[n].pose.position, sampledPoint);
@@ -187,7 +189,7 @@ void tree::generatePoint(){
 		    pathFound = true;
 		    treePoints[0].parentId = pointsInTree;
 		    printf("%i\n", treePoints[0].parentId);
-		    //createPath(); //markerPath
+		    createPath(); //markerPath
 		  }
 			pointsInTree++;
 		}
@@ -211,9 +213,7 @@ int tree::generateCommand(geometry_msgs::Point goal, int startId){
 	tempCmd.linear.y = 0.0f;
 	tempCmd.linear.z = 0.0f;
 	tempCmd.angular.x = 0.0f;
-	tempCmd.angular.y = 0.0f;
-	
-	
+	tempCmd.angular.y = 0.0f;	
 	
 	for(int n = 0; n<samplingNumber; n++){
 		tempCmd.angular.z = (double)(rand() % 1001 -500)/1001*angMax;
@@ -289,7 +289,7 @@ bool tree::collisionCheck(geometry_msgs::Point point){
   //check value at point
   float value = map.data[cellx + celly*map.info.width];
   
-  if(value > 20.0){
+  if(value > 10.0){
     return true;
     //printf("collision detected\n");
   }
@@ -368,7 +368,7 @@ void tree::pathCmd(){
 		pubCmd.publish(treePoints[tempId].cmd);
 		
 		cycleStart = ros::Time::now();
-		while(ros::Time::now().toSec() - cycleStart.toSec() < 0.9){       //Spin to check for replan commands
+		while(ros::Time::now().toSec() - cycleStart.toSec() < 0.9 && ros::ok()){       //Spin to check for replan commands
 		  ros::spinOnce();
 		  if(!pathFound){
 		  	pubCmd.publish(treePoints[0].cmd);

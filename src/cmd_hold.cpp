@@ -27,7 +27,7 @@ int main(int argc, char** argv)
   while(ros::ok()){
     ros::spinOnce();
     pubSub.pubCmd.publish(pubSub.cmd);
-    spinRate.sleep();
+    //spinRate.sleep();
   }
   
   return 0;
