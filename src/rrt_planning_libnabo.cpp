@@ -1,6 +1,7 @@
 #include "rrt_planning_libnabo.h"
 #include <tf/transform_datatypes.h>
 #include <angles/angles.h>
+#include <iostream>
 
 int main(int argc, char **argv)
 {
@@ -77,6 +78,7 @@ void tree::initialPoseCallback(const nav_msgs::Odometry& msg){
     
     initialPoseFound = true;
     printf("Initial Position is set to x=%f and y=%f\n", treePositions(0,0), treePositions(1,0));
+    printf("Orientatin = %f\n", tf::getYaw(treeCmds[0].orientation));
     markerPoint(treePositions.col(0), 0);
   }
 }
@@ -105,7 +107,7 @@ float tree::vectorDistance(Eigen::Vector2f v, Eigen::Vector2f w){
 }
 
 void tree::generatePoint(){
-  printf("generating Point...\n");
+  printf("generating Point #%i...\n", pointsInTree+1);
 	bool closeEnough = false;
 	int cmdSuccess = -1;
   int connectionAttempts = 0;
@@ -113,30 +115,45 @@ void tree::generatePoint(){
   Eigen::VectorXi indices(K);
   Eigen::VectorXf dists2(K);
   Eigen::VectorXf sampledPoint(2);
-  Nabo::NNSearchF* nns = Nabo::NNSearchF::createKDTreeTreeHeap(treePositions);
-  
+  Nabo::NNSearchF* nns;
+  if(pointsInTree > 1){
+    Eigen::MatrixXf M = treePositions.block(0,0,2,pointsInTree);
+    std::cout << M << std::endl;
+    nns = Nabo::NNSearchF::createKDTreeTreeHeap(M);
+  }
   while(cmdSuccess != 0)
   {
-    while(closeEnough = false)
+
+    while(closeEnough == false)
     {      
       //sampling area is limited to roughly the size of corridor map
+
       sampledPoint(0) = (rand()%(int)(10.0*1000.0)) / 1000.0 - 10.0 / 2.0;
       sampledPoint(1) = (rand()%(int)(60.0*1000.0)) / 1000.0 - 60.0 / 2.0;
-      nns->knn(sampledPoint, indices, dists2, K);
+      if(pointsInTree > 1)  
+        nns->knn(sampledPoint, indices, dists2, K);
+      else{
+        indices(0) = 0;
+        dists2(0) = pow(sampledPoint(0)-treePositions(0,0),2) + pow(sampledPoint(1)-treePositions(1,0),2);
+      }
       
-      if(sqrt(dists2(0)) < maxPointDistance)
+      if(vectorDistance(sampledPoint, treePositions.col(indices(0))) < maxPointDistance)
       {
         closeEnough = true;
+        std::cout << sampledPoint << std::endl;
       }
     }
+    printf("closest ID = %i\n", indices(0));
     cmdSuccess = generateCommand(sampledPoint, indices(0));
     connectionAttempts++;
+    if(connectionAttempts > 5)
+      break;
   }
-  printf("connection attempts needed: %i\n", connectionAttempts);
+  //printf("connection attempts needed: %i\n", connectionAttempts);
   
   
   if(cmdSuccess == 0){
-    printf("closest Point: #%i\n", indices(0));
+    //printf("closest Point: #%i\n", indices(0));
     treeCmds[pointsInTree].id = pointsInTree;
     treeCmds[pointsInTree].parentId = indices(0);
     
@@ -144,7 +161,7 @@ void tree::generatePoint(){
     treePositions(1, pointsInTree) = sampledPoint(1);
 		
 		//markerPoint(treeCmds[pointsInTree].pose, pointsInTree);
-    //markerList(pointsInTree);
+    markerList(pointsInTree);
 		  
 		if(vectorDistance(goal, sampledPoint)<0.5){
 		  pathFound = true;
@@ -168,7 +185,7 @@ int tree::generateCommand(Eigen::VectorXf sampledPoint, int startId){
 	int samplingNumber = 5;
 	float speed = 1.0f;
 	float angMax = 1.0f;
-	
+
 	tempCmd.linear.x = speed;
 	tempCmd.linear.y = 0.0f;
 	tempCmd.linear.z = 0.0f;
@@ -176,6 +193,7 @@ int tree::generateCommand(Eigen::VectorXf sampledPoint, int startId){
 	tempCmd.angular.y = 0.0f;	
 	
 	for(int n = 0; n<samplingNumber; n++){
+	  tempOrientation = treeCmds[startId].orientation;
 		tempCmd.angular.z = (double)(rand() % 1001 -500)/1001*angMax;
 		
 		if(cmdIntegration(tempCmd, &tempOrientation, &tempPosition, &tempCost)==0){
@@ -202,6 +220,7 @@ int tree::cmdIntegration(geometry_msgs::Twist cmd, geometry_msgs::Quaternion* or
   float w = cmd.angular.z;
   float v = cmd.linear.x;
   float alpha1 = tf::getYaw(*orientation);
+  //printf("alpha1 = %f\n", alpha1);  
   float Ts = 0.2;
   Eigen::Vector2f checkPoint(2);
   

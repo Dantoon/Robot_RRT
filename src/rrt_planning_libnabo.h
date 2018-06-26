@@ -88,7 +88,7 @@ class tree{
 //------------------------
 
 tree::tree(ros::NodeHandle nh){
-	pointsInTree = 2;
+	pointsInTree = 1;
 	mapFound = false;
 	initialPoseFound = false;
 	goalFound = false;
