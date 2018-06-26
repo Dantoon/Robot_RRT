@@ -85,6 +85,8 @@ void tree::goalCallback(const geometry_msgs::Point& msg){
 	if(goalFound == false){
 		goal(0) = msg.x;
 		goal(1) = msg.y;
+		goalFound = true;
+		printf("goal set to x = %f \ty = %f\n", goal(0), goal(1));
 	}
 }
 

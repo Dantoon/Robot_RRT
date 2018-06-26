@@ -54,16 +54,19 @@
   <build_depend>rviz</build_depend>
   <build_depend>sensor_msgs</build_depend>
   <build_depend>stage_ros</build_depend>
+  <build_depend>libnabo</build_depend>
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>rospy</build_export_depend>
   <build_export_depend>rviz</build_export_depend>
   <build_export_depend>sensor_msgs</build_export_depend>
   <build_export_depend>stage_ros</build_export_depend>
+  <build_export_depend>libnabo</build_export_depend>
   <exec_depend>roscpp</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>rviz</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>stage_ros</exec_depend>
+  <exec_depend>libnabo</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

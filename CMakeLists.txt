@@ -12,7 +12,11 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   rviz
   sensor_msgs
+  geometry_msgs
+  std_msgs
+  nav_msgs
   stage_ros
+  libnabo
 )
 
 ## System dependencies are found with CMake's conventions
@@ -118,7 +122,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+  #include
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -151,6 +155,43 @@ include_directories(
 # target_link_libraries(${PROJECT_NAME}_node
 #   ${catkin_LIBRARIES}
 # )
+
+#add_executable(robot_rrt_planning src/robot_rrt_planning.cpp)
+#target_link_libraries(robot_rrt_planning ${catkin_LIBRARIES})
+#add_dependencies(robot_rrt_planning ${catkin_EXPORTED_TARGETS})
+
+#add_executable(collision_test src/collision_test.cpp)
+#target_link_libraries(collision_test ${catkin_LIBRARIES})
+#add_dependencies(collision_test ${catkin_EXPORTED_TARGETS})
+
+#add_executable(command_sampling src/command_sampling.cpp)
+#target_link_libraries(command_sampling ${catkin_LIBRARIES})
+#add_dependencies(command_sampling ${catkin_EXPORTED_TARGETS})
+
+add_executable(cmd_hold src/cmd_hold.cpp)
+target_link_libraries(cmd_hold ${catkin_LIBRARIES})
+add_dependencies(cmd_hold ${catkin_EXPORTED_TARGETS})
+
+
+add_executable(rrt_planning src/rrt_planning.cpp)
+target_link_libraries(rrt_planning ${catkin_LIBRARIES})
+add_dependencies(rrt_planning ${catkin_EXPORTED_TARGETS})
+
+#add_executable(controller src/controller.cpp)
+#target_link_libraries(controller ${catkin_LIBRARIES})
+#add_dependencies(controller ${catkin_EXPORTED_TARGETS})
+
+add_executable(forward_projection src/forward_projection.cpp)
+target_link_libraries(forward_projection ${catkin_LIBRARIES})
+add_dependencies(forward_projection ${catkin_EXPORTED_TARGETS})
+
+add_executable(tracker src/tracker.cpp)
+target_link_libraries(tracker ${catkin_LIBRARIES})
+add_dependencies(tracker ${catkin_EXPORTED_TARGETS})
+
+add_executable(rrt_planning_libnabo src/rrt_planning_libnabo.cpp)
+target_link_libraries(rrt_planning_libnabo ${catkin_LIBRARIES})
+add_dependencies(rrt_planning_libnabo ${catkin_EXPORTED_TARGETS})
 
 #############
 ## Install ##
@@ -199,44 +240,3 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
-
-#add_executable(robot_rrt_planning src/robot_rrt_planning.cpp)
-#target_link_libraries(robot_rrt_planning ${catkin_LIBRARIES})
-#add_dependencies(robot_rrt_planning ${catkin_EXPORTED_TARGETS})
-
-#add_executable(collision_test src/collision_test.cpp)
-#target_link_libraries(collision_test ${catkin_LIBRARIES})
-#add_dependencies(collision_test ${catkin_EXPORTED_TARGETS})
-
-#add_executable(command_sampling src/command_sampling.cpp)
-#target_link_libraries(command_sampling ${catkin_LIBRARIES})
-#add_dependencies(command_sampling ${catkin_EXPORTED_TARGETS})
-
-add_executable(foo src/foo.cpp)
-target_link_libraries(foo ${catkin_LIBRARIES})
-add_dependencies(foo ${catkin_EXPORTED_TARGETS})
-
-add_executable(cmd_hold src/cmd_hold.cpp)
-target_link_libraries(cmd_hold ${catkin_LIBRARIES})
-add_dependencies(cmd_hold ${catkin_EXPORTED_TARGETS})
-
-
-add_executable(rrt_planning src/rrt_planning.cpp)
-target_link_libraries(rrt_planning ${catkin_LIBRARIES})
-add_dependencies(rrt_planning ${catkin_EXPORTED_TARGETS})
-
-#add_executable(controller src/controller.cpp)
-#target_link_libraries(controller ${catkin_LIBRARIES})
-#add_dependencies(controller ${catkin_EXPORTED_TARGETS})
-
-add_executable(forward_projection src/forward_projection.cpp)
-target_link_libraries(forward_projection ${catkin_LIBRARIES})
-add_dependencies(forward_projection ${catkin_EXPORTED_TARGETS})
-
-add_executable(tracker src/tracker.cpp)
-target_link_libraries(tracker ${catkin_LIBRARIES})
-add_dependencies(tracker ${catkin_EXPORTED_TARGETS})
-
-add_executable(rrt_planning_libnabo src/rrt_planning_libnabo.cpp)
-target_link_libraries(rrt_planning_libnabo ${catkin_LIBRARIES})
-add_dependencies(rrt_planning_libnabo ${catkin_EXPORTED_TARGETS})

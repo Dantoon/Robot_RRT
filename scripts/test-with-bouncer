@@ -36,21 +36,21 @@ echo "Launching costmap..."
 roslaunch multirobot_stage robot_costmap.launch &
 pid="$pid $!"
 
-echo "running rrt_planning..."
-rosrun robot_pedestrian_rrt rrt_planning &
-pid="$pid $!"
-sleep 1s
+#echo "running rrt_planning..."
+#rosrun robot_rrt rrt_planning_libnabo &
+#pid="$pid $!"
+#sleep 1s
 
 echo "running forward_projection..."
-rosrun robot_pedestrian_rrt forward_projection &
+rosrun robot_rrt forward_projection &
 pid="$pid $!"
 
 echo "running tracker..."
-rosrun robot_pedestrian_rrt tracker &
+rosrun robot_rrt tracker &
 pid="$pid $!"
 
 echo "running cmd_hold..."
-rosrun robot_pedestrian_rrt cmd_hold &
+rosrun robot_rrt cmd_hold &
 pid="$pid $!"
 
 echo "setting map goal..."
