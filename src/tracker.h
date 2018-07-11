@@ -37,6 +37,7 @@ class callback{
     
     ros::Subscriber subOdom;
     ros::Subscriber subObstacle1_Odom;
+    ros::Subscriber subObstacle2_Odom;
     ros::Subscriber subMap;
     
     bool lineCollisionCheck(geometry_msgs::Point, geometry_msgs::Point);
@@ -46,6 +47,7 @@ class callback{
     void odomCallback(const nav_msgs::Odometry&);
     //saves robotPose. Just for checking if robot can see Obstacles
     void obstacle1_OdomCallback(const nav_msgs::Odometry&);
+    void obstacle2_OdomCallback(const nav_msgs::Odometry&);
     //tracks robot_1. sends sampled position and if it's visible from robot_0 to trackingUpdate
 };
 

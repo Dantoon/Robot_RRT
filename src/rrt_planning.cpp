@@ -1,6 +1,7 @@
 #include "rrt_planning.h"
 #include <tf/transform_datatypes.h>
 #include <angles/angles.h>
+#include "std_msgs/Float32.h"
 
 
 int main(int argc, char **argv){
@@ -10,24 +11,28 @@ int main(int argc, char **argv){
   ros::Rate spinRate(10);
   ros::Rate r(100000);
   
+  ros::Publisher pubTime;
+  pubTime = nh.advertise<std_msgs::Float32>("/total_time", 1, true);
+  std_msgs::Float32 totalTime;
+  totalTime.data = -1;
+  
   srand(time(NULL));
   rrt.clearMarker();
-  
+  ros::Time rrtBegin;
 	while(ros::ok()){
 		ros::spinOnce();
 		
 		if(rrt.initialPoseFound && rrt.goalFound && rrt.mapFound){
 		  printf("starting rrt...\n");
-		  ros::Time rrtBegin = ros::Time::now();
+		  rrtBegin = ros::Time::now();
+		  pubTime.publish(totalTime);
 		  
 			while(rrt.pointsInTree < rrt.maxPoints-1 && ros::ok()){
 				rrt.generatePoint();
 				//r.sleep();
-			  //usleep(5000); //markerDelay
+			  //usleep(1000); //markerDelay
 				
 				if(rrt.pathFound){
-				  double secs = (ros::Time::now().toNSec() - rrtBegin.toNSec())*1e-9;
-					printf("path found. time = %fs\n", secs);
 					break;
 				}
 			}
@@ -37,8 +42,12 @@ int main(int argc, char **argv){
       printf("sending commands...\n");
       rrt.pathCmd();
       
-      if(rrt.pathFound)
+      if(rrt.pathFound){
+        totalTime.data = (ros::Time::now().toNSec() - rrtBegin.toNSec())*1e-9;
+				printf("travel time = %fs\n", totalTime.data);
+				pubTime.publish(totalTime);
         break;
+      }
     }
     
 	  if(rrt.pointsInTree >= rrt.maxPoints-1){
@@ -157,7 +166,7 @@ void tree::generatePoint(){
 			sampledPoint.y += (rand() % (int)(4*distanceY*1000)) / 1000.0 * invY - distanceY / 4;
 			*/
 			//TODO test with sampling area restricted to more or less only the corridor
-			sampledPoint.x = (rand() % (int)(10.0*1000.0)) / 1000.0 - 10.0 / 2.0;
+			sampledPoint.x = (rand() % (int)(20.0*1000.0)) / 1000.0 - 20.0 / 2.0;
 			sampledPoint.y = (rand() % (int)(60.0*1000.0)) / 1000.0 - 60.0 / 2.0;
 		
 			for(int n = 1; n<pointsInTree; n++){
@@ -189,7 +198,7 @@ void tree::generatePoint(){
 		    pathFound = true;
 		    treePoints[0].parentId = pointsInTree;
 		    printf("%i\n", treePoints[0].parentId);
-		    createPath(); //markerPath
+		    //createPath(); //markerPath
 		  }
 			pointsInTree++;
 		}
@@ -207,7 +216,7 @@ int tree::generateCommand(geometry_msgs::Point goal, int startId){
 	
 	int samplingNumber = 5;
 	float speed = 1.0f;
-	float angMax = 1.0f;
+	float angMax = 1.5f;
 	
 	tempCmd.linear.x = speed;
 	tempCmd.linear.y = 0.0f;

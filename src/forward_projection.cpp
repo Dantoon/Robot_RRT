@@ -88,6 +88,7 @@ callback::callback(ros::NodeHandle nh){
   headObstacle->next = tempObstacle;
   
   subOdom = nh.subscribe("/robot_0/odom", 1, &callback::odomCallback, this);
+  //subOdom = nh.subscribe("/robot_0/base_pose_ground_truth", 1, &callback::odomCallback, this);
 	subMap = nh.subscribe("/robot_0/robot_map/robot_map/costmap", 10, &callback::mapCallback, this);
 	subGoal = nh.subscribe("/map_goal", 10, &callback::goalCallback, this);
   subCmdNum = nh.subscribe("/cmdNum", 10, &callback::cmdNumCallback, this);
@@ -162,33 +163,6 @@ void callback::replanCallback(const std_msgs::Bool& msg){
     cmdNum.data = -1;
   }
 }
-/*
-void callback::obstacleCallback(const nav_msgs::Odometry& msg){
-  int steps = cmdCntr-cmdStart;
-  geometry_msgs::Pose tempPose;
-  printf("steps = %i\n", steps);
-  float v = msg.twist.twist.linear.x;
-  float w = msg.twist.twist.linear.z;
-  float alpha1 = tf::getYaw(msg.pose.pose.orientation);
-  
-  if(w != 0){
-    tempPose.position.x = msg.pose.pose.position.x - v/w * sin(alpha1) + v/w * sin(alpha1 + w*steps);
-    tempPose.position.y = msg.pose.pose.position.y + v/w * cos(alpha1) - v/w * cos(alpha1 + w*steps);
-  }
-  else{
-    tempPose.position.x = msg.pose.pose.position.x + v * cos(alpha1) * steps;
-    tempPose.position.y = msg.pose.pose.position.y + v * sin(alpha1) * steps;
-  }
-
-  pubMarker.publish(markerPoint(tempPose, steps+2, 2));  
-  float distance = pointDistance(tempPose.position, startPose.position);  
-  float obstacleTolerance = 1.0f;
-    
-  if(distance < obstacleTolerance){
-    printf("Dynamic Obstacle collision detected. Replanning...\n");
-    replan();
-  }
-}*/
 
 void callback::obstacleCallback(const nav_msgs::Odometry& msg){
   printf("RECEIVING OBSTACLE INFO\n");
@@ -203,6 +177,7 @@ void callback::obstacleCallback(const nav_msgs::Odometry& msg){
       exist = true;
       break;
     }
+    tempObstacle = tempObstacle->next;
   }
   
   if(exist){
@@ -278,7 +253,7 @@ bool callback::collisionCheck(geometry_msgs::Point point){
   float value = map.data[cellx + celly*map.info.width];
   
   //printf("value: %f\n", value);
-  if(value > 20.0){
+  if(value > 11.0){
     return true;
     //printf("collision detected\n");
   }
@@ -290,11 +265,11 @@ float pointDistance(geometry_msgs::Point p1, geometry_msgs::Point p2){
 }
 
 bool callback::obstacleProjection(){
-  float minDistance = 2.0f;
+  float minDistance = 1.0f;
   geometry_msgs::Pose tempPose;
   tempObstacle = headObstacle->next;
   while(true){
-    if(tempObstacle->id != 0 && tempObstacle->id != -1){
+    if(tempObstacle->id != -1){
       printf("obstacle projection id = %i\n", tempObstacle->id);
       int steps = cmdCntr - cmdStart;
       float v = tempObstacle->cmd.linear.x;
@@ -309,7 +284,7 @@ bool callback::obstacleProjection(){
         tempPose.position.x = tempObstacle->startPose.position.x + steps * v * cos(alpha1);
         tempPose.position.y = tempObstacle->startPose.position.y + steps * v * sin(alpha1);
       }
-      pubMarker.publish(markerPoint(tempPose, steps+2, 2));
+      pubMarker.publish(markerPoint(tempPose, (steps)*2+tempObstacle->id, 2));
       
       if(pointDistance(tempPose.position, startPose.position) < minDistance){
         return false;  

@@ -3,9 +3,9 @@
 At the moment requires multirobot_stage (run-robot-pedestrian-sim and robot_costmap.launch)
 
 When both are up simply use
-<pre><code>rosrun robot_pedestrian_rrt rrt_planning</code></pre>
+<pre><code>rosrun robot_rrt rrt_planning</code></pre>
 for the rrt and
-<pre><code>rosrun robot_pedestrian_rrt forward_projection</code></pre>
+<pre><code>rosrun robot_rrt forward_projection</code></pre>
 for the forward projection.
 The RRT will not start until initial position and goal is determined. Initial Pose is automatically determined with via odom.
 Map goal however has to be published to /map_goal as a geometry_msg/Pose.

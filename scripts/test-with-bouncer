@@ -10,7 +10,7 @@ pid=$!
 echo "Launching Stage..."
 sleep 2s
 #roslaunch multirobot_stage multirobot_stage.launch world_file:=manyDots rviz_config:=robot_pedestrian_stage &
-roslaunch multirobot_stage multirobot_stage.launch world_file:=corridor rviz_config:=corridor &
+roslaunch multirobot_stage multirobot_stage.launch world_file:=corridor_complex rviz_config:=corridor &
 pid="$pid $!"
 
 echo "Loading initialisation parameters..."
@@ -18,12 +18,12 @@ rosparam load $(rospack find multirobot_stage)/scripts/initial_poses.yaml &
 
 echo "Launching map server..."
 #roslaunch nav_bundle map_server_stage.launch &
-roslaunch nav_bundle map_server_stage.launch map_name:=corridor &
+roslaunch nav_bundle map_server_stage.launch map_name:=corridor_complex &
 pid="$pid $!"
 
 echo "Launching navigation stack..."
 sleep 2s
-for i in `seq 0 1`;
+for i in `seq 0 2`;
 do
   roslaunch nav_bundle single_navigation_stage.launch robot_name:=robot_$i x:="$(rosparam get /robot_$i/x)" y:="$(rosparam get /robot_$i/y)" yaw:="$(rosparam get /robot_$i/a)" &
   pid="$pid $!"
@@ -36,10 +36,10 @@ echo "Launching costmap..."
 roslaunch multirobot_stage robot_costmap.launch &
 pid="$pid $!"
 
-#echo "running rrt_planning..."
-#rosrun robot_rrt rrt_planning_libnabo &
-#pid="$pid $!"
-#sleep 1s
+echo "running rrt_planning..."
+rosrun robot_rrt rrt_planning &
+pid="$pid $!"
+sleep 1s
 
 echo "running forward_projection..."
 rosrun robot_rrt forward_projection &
@@ -61,6 +61,10 @@ pid="$pid $!"
 
 echo "Launching pedestrian bounce controller..."
 roslaunch multirobot_stage bouncer.launch ns:=robot_1 &
+pid="$pid $!"
+
+echo "Launching pedestrian bounce controller..."
+roslaunch multirobot_stage bouncer.launch ns:=robot_2 &
 pid="$pid $!"
 
 trap "echo Killing all processes.; kill -2 TERM $pid; exit" SIGINT SIGTERM

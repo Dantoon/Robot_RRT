@@ -57,8 +57,10 @@ callback::callback(ros::NodeHandle nh){
   tempHead = head;
   mapOk = false;
   
-  subOdom = nh.subscribe("/robot_0/odom", 1, &callback::odomCallback,this);
-  subObstacle1_Odom = nh.subscribe("/robot_1/odom", 1, &callback::obstacle1_OdomCallback, this);
+  //subOdom = nh.subscribe("/robot_0/odom", 1, &callback::odomCallback,this);
+  subOdom = nh.subscribe("/robot_0/base_pose_ground_truth", 1, &callback::odomCallback,this);
+  subObstacle1_Odom = nh.subscribe("/robot_1/base_pose_ground_truth", 1, &callback::obstacle1_OdomCallback, this);
+  subObstacle2_Odom = nh.subscribe("/robot_2/base_pose_ground_truth", 1, &callback::obstacle2_OdomCallback, this);
   subMap = nh.subscribe("/robot_0/robot_map/robot_map/costmap", 10, &callback::mapCallback, this);
 }
 
@@ -90,6 +92,25 @@ void callback::obstacle1_OdomCallback(const nav_msgs::Odometry& msg){
   	}
 	
   	trackingUpdate(1, inView, position, &head, &tempHead);
+	}
+}
+
+void callback::obstacle2_OdomCallback(const nav_msgs::Odometry& msg){
+	if(mapOk){
+  	geometry_msgs::Point position = msg.pose.pose.position;
+  	bool inView = false;
+
+  	float range = pointDistance(robotPose.position, position);
+  	float angle = atan2(position.y-robotPose.position.y, position.x-robotPose.position.x);
+  	float relativeAngle = angle - tf::getYaw(robotPose.orientation);
+  	//printf("relative angle:\t\t%f\nrobot view angle:\t%f\n", fabs(relativeAngle), robotViewAngle);
+  	bool collision = lineCollisionCheck(position, robotPose.position);
+
+  	if(range < robotMaxRange && range > robotMinRange && fabs(relativeAngle) < robotViewAngle && !collision){
+  	  inView = true;
+  	}
+	
+  	trackingUpdate(2, inView, position, &head, &tempHead);
 	}
 }
 
@@ -242,12 +263,6 @@ nav_msgs::Odometry odomCalc(geometry_msgs::Point p1, geometry_msgs::Point p2, ge
   }
   
   else{
-    /*
-    1. calc midpoint of circle
-    2. calc angular velocity of robot
-    3, calc speed of robot
-    */
-    
     float dalpha = alpha1 - alpha2;
     float beta = 0.5*(pi+dalpha);
     float theta = (pi-2*beta);
