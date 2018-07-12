@@ -30,7 +30,7 @@ int main(int argc, char **argv){
 			while(rrt.pointsInTree < rrt.maxPoints-1 && ros::ok()){
 				rrt.generatePoint();
 				//r.sleep();
-			  //usleep(1000); //markerDelay
+			  //usleep(1000); //markerDelay. uncomment if you want to visualize the tree
 				
 				if(rrt.pathFound){
 					break;
@@ -192,7 +192,7 @@ void tree::generatePoint(){
 			treePoints[pointsInTree].parentId = treePoints[closestId].id;
 			
 			//markerPoint(treePoints[pointsInTree].pose, pointsInTree);
-      //markerList(pointsInTree);
+      //markerList(pointsInTree); //uncomment to visualize tree. also uncomment usleep in main()
 		  
 		  if(distance(treePoints[pointsInTree].pose.position, treePoints[0].pose.position)<0.5){
 		    pathFound = true;
